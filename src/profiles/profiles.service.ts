@@ -125,4 +125,118 @@ export class ProfilesService {
 
     return this.getProfile(userId);
   }
+
+  async awardReportRewards(userId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    // 1. Fetch current gamification state
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('xp, level, report_count, current_streak, last_report_date')
+      .eq('id', userId)
+      .single();
+
+    if (error || !profile) {
+      throw new BadRequestException('Gagal mengambil data profil untuk reward: ' + error?.message);
+    }
+
+    const currentXp = profile.xp;
+    const currentLevel = profile.level;
+    const currentReportCount = profile.report_count;
+    const currentStreak = profile.current_streak;
+    const lastReportDate = profile.last_report_date;
+
+    // 2. Calculate new values
+    const newXp = currentXp + 100;
+    const newLevel = Math.floor(newXp / 1000) + 1;
+    const newReportCount = currentReportCount + 1;
+    
+    // Calculate streak
+    let newStreak = 1;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (lastReportDate) {
+      const lastDate = new Date(lastReportDate);
+      const todayDate = new Date(todayStr);
+      // Calculate diff in days (ignore timezone by comparing dates)
+      const diffTime = todayDate.getTime() - lastDate.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        newStreak = currentStreak + 1;
+      } else if (diffDays === 0) {
+        newStreak = currentStreak; // Already reported today
+      } else {
+        newStreak = 1; // Broke streak
+      }
+    }
+
+    // 3. Update profile
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        xp: newXp,
+        level: newLevel,
+        report_count: newReportCount,
+        current_streak: newStreak,
+        last_report_date: todayStr,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      throw new BadRequestException('Gagal memperbarui reward profil: ' + updateError.message);
+    }
+
+    // 4. Check & award badges
+    try {
+      if (newReportCount === 1) {
+        await this.awardBadgeIfMissing(userId, 'first_report');
+      }
+      if (newStreak === 3) {
+        await this.awardBadgeIfMissing(userId, 'streak_3');
+      }
+      if (newStreak === 7) {
+        await this.awardBadgeIfMissing(userId, 'streak_7');
+      }
+      if (newXp >= 1000 && currentXp < 1000) {
+        await this.awardBadgeIfMissing(userId, 'green_hero');
+      }
+    } catch (badgeErr) {
+      // Ignore badge awarding errors
+    }
+
+    return {
+      xp: newXp,
+      level: newLevel,
+      report_count: newReportCount,
+      current_streak: newStreak,
+      levelUp: newLevel > currentLevel,
+    };
+  }
+
+  private async awardBadgeIfMissing(userId: string, badgeCode: string) {
+    const supabase = this.supabaseService.getClient();
+    // Check if user already has this badge
+    const { data: badge } = await supabase
+      .from('badges')
+      .select('id')
+      .eq('code', badgeCode)
+      .single();
+
+    if (!badge) return;
+
+    const { data: hasBadge } = await supabase
+      .from('profile_badges')
+      .select('profile_id')
+      .eq('profile_id', userId)
+      .eq('badge_id', badge.id)
+      .maybeSingle();
+
+    if (!hasBadge) {
+      await supabase
+        .from('profile_badges')
+        .insert({ profile_id: userId, badge_id: badge.id });
+    }
+  }
 }

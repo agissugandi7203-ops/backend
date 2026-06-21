@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { BadgesModule } from './badges/badges.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { StorageModule } from './storage/storage.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
     ProfilesModule,
     BadgesModule,
     LeaderboardModule,
+    StorageModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
