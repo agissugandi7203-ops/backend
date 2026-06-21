@@ -12,8 +12,10 @@ export class SupabaseService {
     const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseKey) {
-      this.logger.error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not defined in environment variables');
-      throw new Error('Supabase configuration is missing in environment variables');
+      this.logger.warn(
+        'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not defined in environment variables. Supabase client is not initialized!',
+      );
+      return;
     }
 
     this.supabaseClient = createClient(supabaseUrl, supabaseKey, {
@@ -26,6 +28,9 @@ export class SupabaseService {
   }
 
   getClient(): SupabaseClient {
+    if (!this.supabaseClient) {
+      throw new Error('Supabase client is not initialized due to missing environment variables.');
+    }
     return this.supabaseClient;
   }
 }
