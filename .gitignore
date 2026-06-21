@@ -1,0 +1,18 @@
+# Compiled output
+/dist
+/node_modules
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
