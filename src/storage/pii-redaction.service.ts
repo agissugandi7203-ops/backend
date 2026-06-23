@@ -14,18 +14,19 @@ export class PiiRedactionService implements OnModuleInit {
     const projectId = this.configService.get<string>('GCS_PROJECT_ID');
     const keyFilePath = this.configService.get<string>('GCS_KEY_FILE_PATH');
 
-    if (!projectId || !keyFilePath) {
+    if (!projectId) {
       this.logger.warn(
-        'Konfigurasi Google Cloud Vision API belum lengkap di file .env. PiiRedactionService mungkin gagal mendeteksi.',
+        'Konfigurasi GCS_PROJECT_ID belum lengkap di file .env. PiiRedactionService mungkin gagal mendeteksi.',
       );
       return;
     }
 
     try {
-      this.visionClient = new vision.ImageAnnotatorClient({
-        projectId,
-        keyFilename: keyFilePath,
-      });
+      const visionOptions: any = {};
+      if (projectId) visionOptions.projectId = projectId;
+      if (keyFilePath) visionOptions.keyFilename = keyFilePath;
+
+      this.visionClient = new vision.ImageAnnotatorClient(visionOptions);
       this.logger.log('Google Cloud Vision API client successfully initialized');
     } catch (error) {
       this.logger.error('Failed to initialize Google Cloud Vision client: ' + error.message);
