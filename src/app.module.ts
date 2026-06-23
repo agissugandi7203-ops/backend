@@ -9,6 +9,9 @@ import { BadgesModule } from './badges/badges.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { StorageModule } from './storage/storage.module';
 import { ReportsModule } from './reports/reports.module';
+import { OpenRouterModule } from './openrouter/openrouter.module';
+import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { ReportsModule } from './reports/reports.module';
     LeaderboardModule,
     StorageModule,
     ReportsModule,
+    OpenRouterModule,
+    KnowledgeBaseModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,38 +1,20 @@
-import { Injectable, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ProfilesService } from '../profiles/profiles.service';
-import { GoogleGenAI } from '@google/genai';
+import { OpenRouterService } from '../openrouter/openrouter.service';
 
 @Injectable()
 export class AiClassificationService implements OnModuleInit {
   private readonly logger = new Logger(AiClassificationService.name);
-  private ai: GoogleGenAI;
-  private modelName: string;
 
   constructor(
-    private configService: ConfigService,
     private supabaseService: SupabaseService,
     private profilesService: ProfilesService,
+    private openRouterService: OpenRouterService,
   ) {}
 
   onModuleInit() {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
-    this.modelName = this.configService.get<string>('GEMINI_MODEL') || 'gemini-1.5-flash';
-
-    if (!apiKey) {
-      this.logger.warn(
-        'GEMINI_API_KEY belum dikonfigurasi di file .env. Otomatisasi Klasifikasi AI dinonaktifkan.',
-      );
-      return;
-    }
-
-    try {
-      this.ai = new GoogleGenAI({ apiKey });
-      this.logger.log(`Google Gen AI client successfully initialized with model ${this.modelName}`);
-    } catch (error) {
-      this.logger.error('Failed to initialize Google Gen AI client: ' + error.message);
-    }
+    this.logger.log('AiClassificationService successfully initialized with OpenRouter integration.');
   }
 
   /**
@@ -56,63 +38,12 @@ export class AiClassificationService implements OnModuleInit {
     reporterId: string,
     mimeType: string,
   ): Promise<void> {
-    if (!this.ai) {
-      this.logger.warn('Klien Gemini API belum terinisialisasi. Melewati klasifikasi AI.');
-      // Ubah status ke pending_human jika AI key tidak ada agar admin bisa memproses secara manual
-      await this.updateReportStatusOnly(reportId, 'pending_human');
-      return;
-    }
-
     this.logger.log(`Starting AI classification for report: ${reportId}`);
 
-    const base64Image = imageBuffer.toString('base64');
-    const promptText = `
-      Analisis foto laporan masalah lingkungan ini secara detail.
-      Tentukan:
-      1. waste_type (Tipe sampah): pilih salah satu dari 'Plastik', 'Organik', 'B3' (Bahan Berbahaya Beracun), 'Kertas', 'Logam', 'Kaca', atau 'Lainnya'.
-      2. danger_level (Tingkat bahaya): pilih salah satu dari 'low', 'medium', atau 'high'.
-      3. isValid (Validitas): Apakah gambar ini benar-benar memperlihatkan pencemaran lingkungan, tumpukan sampah liar, limbah, atau kerusakan ekosistem yang valid? (true atau false). Jika gambar berupa selfie, pemandangan bersih, objek acak yang tidak berhubungan, atau gambar spam, maka kembalikan false.
-      4. confidence_score: Tingkat keyakinan Anda terhadap klasifikasi ini antara 0.0 hingga 1.0.
-
-      Kembalikan respons sesuai dengan JSON schema yang ditentukan.
-    `;
-
     try {
-      const response = await this.ai.models.generateContent({
-        model: this.modelName,
-        contents: [
-          {
-            inlineData: {
-              mimeType: mimeType || 'image/jpeg',
-              data: base64Image,
-            },
-          },
-          {
-            text: promptText,
-          },
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT',
-            properties: {
-              waste_type: { type: 'STRING' },
-              danger_level: { type: 'STRING' },
-              isValid: { type: 'BOOLEAN' },
-              confidence_score: { type: 'NUMBER' },
-            },
-            required: ['waste_type', 'danger_level', 'isValid', 'confidence_score'],
-          },
-        },
-      });
-
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error('Gemini API returned an empty response');
-      }
-
-      const result = JSON.parse(responseText);
-      this.logger.log(`AI Classification raw result for ${reportId}: ${JSON.stringify(result)}`);
+      // Panggil OpenRouter image classifier
+      const result = await this.openRouterService.classifyImage(imageBuffer, mimeType);
+      this.logger.log(`AI Classification result for ${reportId}: ${JSON.stringify(result)}`);
 
       const wasteType = result.waste_type || 'Lainnya';
       const dangerLevel = result.danger_level || 'low';
@@ -165,7 +96,7 @@ export class AiClassificationService implements OnModuleInit {
           .eq('id', reportId);
       }
     } catch (error) {
-      this.logger.error(`Error calling Gemini API or parsing response: ${error.message}`);
+      this.logger.error(`Error calling OpenRouter API or parsing response: ${error.message}`);
       // Fallback: Set status ke pending_human jika API error agar admin dapat meninjau manual
       await this.updateReportStatusOnly(reportId, 'pending_human');
     }
