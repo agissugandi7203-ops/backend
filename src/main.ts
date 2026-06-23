@@ -19,6 +19,12 @@ async function bootstrap() {
     },
   });
 
+  // Aktifkan CORS agar Flutter Web/Mobile local dapat terhubung
+  app.enableCors({
+    origin: '*',
+    credentials: true,
+  });
+
   await app.listen(Number(process.env.PORT ?? 3000), '0.0.0.0');
 }
 bootstrap();
