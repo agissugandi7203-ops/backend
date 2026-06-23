@@ -16,3 +16,9 @@
 *.sln
 *.sw?
 .DS_Store
+
+# Secrets and credentials
+/secrets/
+*.json
+/test-gcs.js
+

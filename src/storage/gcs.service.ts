@@ -15,7 +15,7 @@ export class GcsService implements OnModuleInit {
     const keyFilePath = this.configService.get<string>('GCS_KEY_FILE_PATH');
     this.bucketName = this.configService.get<string>('GCS_BUCKET_NAME') || '';
 
-    if (!projectId || !keyFilePath || !this.bucketName) {
+    if (!projectId || !this.bucketName) {
       this.logger.warn(
         'Konfigurasi Google Cloud Storage (GCS) belum lengkap di file .env. GcsService mungkin gagal saat mengunggah.',
       );
@@ -23,10 +23,11 @@ export class GcsService implements OnModuleInit {
     }
 
     try {
-      this.storage = new Storage({
-        projectId,
-        keyFilename: keyFilePath,
-      });
+      const storageOptions: any = {};
+      if (projectId) storageOptions.projectId = projectId;
+      if (keyFilePath) storageOptions.keyFilename = keyFilePath;
+
+      this.storage = new Storage(storageOptions);
       this.logger.log('Google Cloud Storage client successfully initialized');
     } catch (error) {
       this.logger.error('Failed to initialize Google Cloud Storage: ' + error.message);
