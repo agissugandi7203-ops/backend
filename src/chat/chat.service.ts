@@ -27,7 +27,7 @@ export class ChatService {
       const messages = this.buildMultimodalMessages(sanitizedMessage, contextText, dto);
 
       // 3. Panggil OpenRouter
-      const reply = await this.openRouterService.getChatCompletion(messages);
+      const reply = await this.openRouterService.getChatCompletion(messages, dto.model);
       return { reply };
     } catch (error) {
       this.logger.error(`Error processing instant chat: ${error.message}`);
@@ -53,7 +53,7 @@ export class ChatService {
       const messages = this.buildMultimodalMessages(sanitizedMessage, contextText, dto);
 
       // 3. Panggil OpenRouter Stream API
-      return await this.openRouterService.getChatCompletionStream(messages);
+      return await this.openRouterService.getChatCompletionStream(messages, dto.model);
     } catch (error) {
       this.logger.error(`Error starting chat stream: ${error.message}`);
       throw new HttpException(

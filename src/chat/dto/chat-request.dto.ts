@@ -16,4 +16,8 @@ export class ChatRequestDto {
   @IsOptional()
   @IsString()
   audio?: string; // base64 string
+
+  @IsOptional()
+  @IsString()
+  model?: string; // AI Model selected
 }
