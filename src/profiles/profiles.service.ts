@@ -55,17 +55,17 @@ export class ProfilesService {
       throw new BadRequestException('Username is already taken');
     }
 
-    // 2. Update profil onboarding
+    // 2. Update profil onboarding (gunakan upsert agar otomatis terbuat jika baris data belum ada)
     const { data: updatedProfile, error: updateError } = await supabase
       .from('profiles')
-      .update({
+      .upsert({
+        id: userId,
         username: dto.username,
         full_name: dto.full_name,
         province: dto.province,
         city_or_district: dto.city_or_district,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
       .select()
       .single();
 
