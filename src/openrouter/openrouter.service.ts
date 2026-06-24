@@ -197,4 +197,45 @@ export class OpenRouterService {
       throw error;
     }
   }
+
+  /**
+   * Mengirim base64 audio ke OpenRouter untuk Speech-To-Text (transkripsi)
+   */
+  async transcribeAudio(base64Audio: string, format: string, model?: string): Promise<string> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key is not configured.');
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: model || 'openai/whisper-1',
+          input_audio: {
+            data: base64Audio,
+            format: format || 'wav',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter STT API returned status ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      if (!result || typeof result.text !== 'string') {
+        throw new Error('Invalid transcription response format from OpenRouter');
+      }
+
+      return result.text;
+    } catch (error) {
+      this.logger.error(`Error transcribing audio: ${error.message}`);
+      throw error;
+    }
+  }
 }

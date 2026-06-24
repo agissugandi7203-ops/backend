@@ -127,25 +127,109 @@ export class ChatService {
    * Mensanitasi input teks warga untuk mencegah Prompt Injection
    */
   private sanitizeInput(input: string): string {
-    const dangerousPatterns = [
-      /ignore previous instructions/i,
-      /ignore system instructions/i,
-      /ignore above/i,
-      /system override/i,
-      /forget everything/i,
-      /forget rules/i,
-      /bypass safety/i,
-      /developer mode/i,
-      /you are now/i,
-    ];
+    if (!input) return input;
 
     let sanitized = input;
+
+    // Pola Deteksi Prompt Injection (termasuk Typoglycemia / Fuzzy target words)
+    const dangerousPatterns = [
+      // Standar
+      /ignore\s+previous\s+instructions/i,
+      /ignore\s+system\s+instructions/i,
+      /ignore\s+above/i,
+      /system\s+override/i,
+      /forget\s+everything/i,
+      /forget\s+rules/i,
+      /bypass\s+safety/i,
+      /developer\s+mode/i,
+      /you\s+are\s+now/i,
+      
+      // Typoglycemia (Fuzzy targets)
+      /ign(?:ore|roe|onre|ore)\s+prev(?:ious|ous|oius)\s+inst(?:ructions|uctions|rucions|rutions)/i,
+      /ign(?:ore|roe|onre|ore)\s+syst(?:em|me|estm|em)\s+inst(?:ructions|uctions|rucions|rutions)/i,
+      /ign(?:ore|roe|onre|ore)\s+above/i,
+      /syst(?:em|me|estm|em)\s+overr?(?:ide|de|ide)/i,
+      /forg(?:et|t|egt|ret)\s+every(?:thing|thing)/i,
+      /forg(?:et|t|egt|ret)\s+ru(?:les|els|ls|lse)/i,
+      /bypas{1,2}\s+saf(?:ety|tey)/i,
+      /dev(?:eloper|loper)\s+mode/i,
+    ];
+
+    // 1. Cek & Redact Space-separated Hex Pairs (e.g. "69 67 6e 6f 72 65")
+    const spaceHexRegex = /\b([0-9a-fA-F]{2}\s+)+[0-9a-fA-F]{2}\b/g;
+    sanitized = sanitized.replace(spaceHexRegex, (match) => {
+      try {
+        const hexes = match.split(/\s+/);
+        const decoded = Buffer.from(hexes.map(h => parseInt(h, 16))).toString('utf-8');
+        if (/^[\x20-\x7E\r\n\t]+$/.test(decoded)) {
+          for (const pattern of dangerousPatterns) {
+            if (pattern.test(decoded)) {
+              this.logger.warn(`Prompt Injection (Hex Evasion) detected and redacted.`);
+              return '[PROMPT_INJECTION]';
+            }
+          }
+        }
+      } catch (_) {}
+      return match;
+    });
+
+    // 2. Cek & Redact Continuous Hex String (e.g. "69676e6f7265")
+    const continuousHexRegex = /\b[0-9a-fA-F]{8,}\b/g;
+    sanitized = sanitized.replace(continuousHexRegex, (match) => {
+      if (match.length % 2 === 0) {
+        try {
+          const decoded = Buffer.from(match, 'hex').toString('utf-8');
+          if (/^[\x20-\x7E\r\n\t]+$/.test(decoded)) {
+            for (const pattern of dangerousPatterns) {
+              if (pattern.test(decoded)) {
+                this.logger.warn(`Prompt Injection (Hex Evasion) detected and redacted.`);
+                return '[PROMPT_INJECTION]';
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      return match;
+    });
+
+    // 3. Cek & Redact Base64 (e.g. "aWdub3JlIHByZXZpb3Vz")
+    const base64Regex = /\b[a-zA-Z0-9+/]{8,}=*\b/g;
+    sanitized = sanitized.replace(base64Regex, (match) => {
+      try {
+        const decoded = Buffer.from(match, 'base64').toString('utf-8');
+        if (/^[\x20-\x7E\r\n\t]+$/.test(decoded)) {
+          for (const pattern of dangerousPatterns) {
+            if (pattern.test(decoded)) {
+              this.logger.warn(`Prompt Injection (Base64 Evasion) detected and redacted.`);
+              return '[PROMPT_INJECTION]';
+            }
+          }
+        }
+      } catch (_) {}
+      return match;
+    });
+
+    // 4. Cek & Redact Spaced Characters (e.g. "i g n o r e  p r e v i o u s")
+    const spacedCharRegex = /(?:\b[a-zA-Z]\s+)+[a-zA-Z]\b/g;
+    sanitized = sanitized.replace(spacedCharRegex, (match) => {
+      const collapsed = match.replace(/\s+/g, '');
+      for (const pattern of dangerousPatterns) {
+        if (pattern.test(collapsed)) {
+          this.logger.warn(`Prompt Injection (Character Spacing Evasion) detected and redacted.`);
+          return '[PROMPT_INJECTION]';
+        }
+      }
+      return match;
+    });
+
+    // 5. Cek & Redact standard/typoglycemia patterns directly on the sanitized string
     for (const pattern of dangerousPatterns) {
       if (pattern.test(sanitized)) {
-        this.logger.warn(`Prompt Injection attempt detected and blocked: "${sanitized}"`);
-        sanitized = sanitized.replace(pattern, '[REDACTED SYSTEM OVERRIDE ATTEMPT]');
+        this.logger.warn(`Prompt Injection detected and redacted.`);
+        sanitized = sanitized.replace(pattern, '[PROMPT_INJECTION]');
       }
     }
+
     return sanitized;
   }
 
@@ -154,13 +238,14 @@ export class ChatService {
    */
   private buildMultimodalMessages(userMessage: string, contextText: string, dto: ChatRequestDto): any[] {
     const systemPrompt = `
-      Anda adalah Asisten Hukum & Peraturan Kota Genesis.id yang sangat sopan dan pintar.
-      Tugas Anda adalah membantu warga menjawab pertanyaan mereka secara akurat, jelas, dan santun hanya berdasarkan konteks dokumen peraturan resmi yang disediakan di bawah ini.
-      
-      ATURAN JAWABAN:
-      1. Jawab HANYA menggunakan informasi regulasi resmi yang disediakan. Jangan mengarang informasi di luar dokumen.
-      2. Jika pertanyaan warga sama sekali tidak berhubungan dengan regulasi kota yang disediakan, katakan dengan sopan bahwa Anda tidak memiliki wewenang atau informasi perda mengenai hal tersebut, lalu sarankan mereka untuk menghubungi dinas terkait kota secara resmi.
-      3. Hormati aturan tata krama penulisan bahasa Indonesia yang baik dan benar.
+      Anda adalah Asisten Hukum & Peraturan Kota Genesis.id bernama Geni. Anda sangat ramah, hangat, menyambut, interaktif, dan cerdas.
+      Tugas utama Anda adalah membantu warga memahami peraturan kota dengan sapaan hangat di awal pesan, lalu menyajikan penjelasan yang jelas, padat, dan tidak kaku (bersahabat).
+
+      PANDUAN RESPONS:
+      1. MENYAMBUT & RAMAH: Mulailah pesan dengan sapaan hangat yang interaktif, seperti "Halo Kak! 👋" atau "Selamat datang di Genesis.id! 😊" atau "Senang bisa membantu Anda! 🌱". Buat warga merasa diterima dan didengarkan.
+      2. CEPAT & TO-THE-POINT: Sajikan jawaban secara padat, efektif, dan langsung menjawab inti pertanyaan (to-the-point) demi mempercepat waktu respons (latensi rendah). Hindari kalimat hukum yang berbelit-belit dan kaku.
+      3. STRUKTUR MARKDOWN INDAH: Susun jawaban Anda menggunakan format Markdown yang rapi dan terstruktur (tebal, miring, daftar poin, kutipan, bahkan tabel sederhana jika membandingkan data) agar sangat mudah dipahami warga secara instan di layar HP mereka.
+      4. GENTLE DEFLECTION (PENGALIHAN RAMAH): Jika warga menanyakan hal di luar topik regulasi resmi atau di luar konteks kota, JANGAN PERNAH menolak langsung secara kasar atau kaku (seperti "Saya tidak bisa menjawab itu" atau "Maaf saya hanya diprogram untuk..."). Sebaliknya, jawablah dengan mengaitkan pertanyaan tersebut secara kreatif dan santun ke konteks aturan lingkungan, kenyamanan hidup warga, kebersihan kota, atau ketertiban umum. Berikan jembatan kalimat pengalihan yang mulus, misalnya mengarahkan mereka untuk memeriksa regulasi kota terkait atau menyarankan langkah positif sebagai warga yang baik. Jaga agar percakapan tetap mengalir hangat dan mendidik!
 
       DOKUMEN REGULASI RESMI KOTA (ACUAN RAG):
       ${contextText}
@@ -221,5 +306,36 @@ export class ChatService {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContentArray }
     ];
+  }
+
+  /**
+   * Transkripsi audio menggunakan OpenRouter Speech-To-Text API
+   */
+  async transcribeAudio(base64Audio: string, format: string, model?: string): Promise<{ text: string }> {
+    if (!base64Audio) {
+      throw new HttpException('Audio data (base64) wajib disertakan', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      let rawBase64 = base64Audio;
+      let audioFormat = format || 'wav';
+
+      // Jika dikirim sebagai data URL, pisahkan header dan datanya
+      if (base64Audio.startsWith('data:')) {
+        const parts = base64Audio.split(';base64,');
+        rawBase64 = parts[1] || base64Audio;
+        const mime = parts[0].replace('data:', '');
+        audioFormat = mime.split('/')[1] || audioFormat;
+      }
+
+      const text = await this.openRouterService.transcribeAudio(rawBase64, audioFormat, model);
+      return { text };
+    } catch (error) {
+      this.logger.error(`Error in transcribeAudio service: ${error.message}`);
+      throw new HttpException(
+        `Gagal mentranskripsi audio: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

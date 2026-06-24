@@ -12,6 +12,24 @@ import { UpdateReportDto } from './dto/update-report.dto';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
+  @Post('analyze')
+  async analyzeReportImage(
+    @Req() req: any,
+  ) {
+    const fastifyReq = req as FastifyRequest;
+    if (!fastifyReq.isMultipart()) {
+      throw new BadRequestException('Format request harus berupa multipart/form-data');
+    }
+
+    const fileData = await fastifyReq.file();
+    if (!fileData) {
+      throw new BadRequestException('Berkas foto laporan wajib diunggah');
+    }
+
+    const fileBuffer = await fileData.toBuffer();
+    return this.reportsService.analyzeImage(fileBuffer, fileData.mimetype);
+  }
+
   @Post()
   async uploadReport(
     @Req() req: any,

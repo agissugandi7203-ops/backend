@@ -65,4 +65,16 @@ export class ChatController {
       reply.raw.end();
     }
   }
+
+  /**
+   * Endpoint Transkripsi Audio Speech-To-Text (OpenRouter API)
+   */
+  @Post('transcribe')
+  async transcribeAudio(
+    @Body('audio') base64Audio: string,
+    @Body('format') format: string,
+    @Body('model') model?: string,
+  ) {
+    return this.chatService.transcribeAudio(base64Audio, format, model);
+  }
 }
