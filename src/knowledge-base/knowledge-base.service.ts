@@ -13,28 +13,27 @@ export class KnowledgeBaseService {
     private openRouterService: OpenRouterService,
     private configService: ConfigService,
   ) {}
-  /**
-   * Memotong teks panjang menjadi beberapa chunk kecil dengan overlap
-   */
   private chunkText(text: string, chunkSize: number = 800, chunkOverlap: number = 150): string[] {
     const chunks: string[] = [];
     let start = 0;
     
     while (start < text.length) {
       let end = start + chunkSize;
-      if (end > text.length) end = text.length;
+      if (end >= text.length) {
+        end = text.length;
+        chunks.push(text.substring(start, end).trim());
+        break;
+      }
       
       // Cari spasi terdekat agar pemotongan rapi (tidak memotong kata)
-      if (end < text.length) {
-        const nextSpace = text.indexOf(' ', end);
-        if (nextSpace !== -1 && nextSpace - end < 50) {
-          end = nextSpace;
-        }
+      const nextSpace = text.indexOf(' ', end);
+      if (nextSpace !== -1 && nextSpace - end < 50) {
+        end = nextSpace;
       }
       
       chunks.push(text.substring(start, end).trim());
       start = end - chunkOverlap;
-      if (start < 0) break;
+      if (start <= 0 || start >= text.length) break;
     }
     
     return chunks.filter(c => c.length > 0);

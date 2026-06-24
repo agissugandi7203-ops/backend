@@ -37,6 +37,7 @@ export class OpenRouterService {
         body: JSON.stringify({
           model: this.embeddingModel,
           input: text,
+          dimensions: 768,
         }),
       });
 
