@@ -5,11 +5,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 @Injectable()
 export class SupabaseService {
   private readonly logger = new Logger(SupabaseService.name);
-  private supabaseClient: SupabaseClient;
+  private supabaseClient: SupabaseClient<any, any, any>;
 
   constructor(private configService: ConfigService) {
     const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
-    const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseKey = this.configService.get<string>(
+      'SUPABASE_SERVICE_ROLE_KEY',
+    );
 
     if (!supabaseUrl || !supabaseKey) {
       this.logger.warn(
@@ -27,9 +29,11 @@ export class SupabaseService {
     this.logger.log('Supabase Client successfully initialized');
   }
 
-  getClient(): SupabaseClient {
+  getClient(): SupabaseClient<any, any, any> {
     if (!this.supabaseClient) {
-      throw new Error('Supabase client is not initialized due to missing environment variables.');
+      throw new Error(
+        'Supabase client is not initialized due to missing environment variables.',
+      );
     }
     return this.supabaseClient;
   }

@@ -8,9 +8,17 @@ export class LeaderboardController {
   constructor(private readonly leaderboardService: LeaderboardService) {}
 
   @Get('global')
-  getGlobalLeaderboard(@Query('limit') limit?: number) {
+  getGlobalLeaderboard(
+    @Query('limit') limit?: number,
+    @Query('city') city?: string,
+    @Query('province') province?: string,
+  ) {
     const limitVal = limit ? Number(limit) : 100;
-    return this.leaderboardService.getGlobalLeaderboard(limitVal);
+    return this.leaderboardService.getGlobalLeaderboard(
+      limitVal,
+      city,
+      province,
+    );
   }
 
   @Get('city')

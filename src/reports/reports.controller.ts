@@ -1,4 +1,17 @@
-import { Controller, Post, Req, Get, Patch, Delete, Param, Body, UseGuards, UsePipes, ValidationPipe, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Req,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -13,12 +26,12 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post('analyze')
-  async analyzeReportImage(
-    @Req() req: any,
-  ) {
+  async analyzeReportImage(@Req() req: any) {
     const fastifyReq = req as FastifyRequest;
     if (!fastifyReq.isMultipart()) {
-      throw new BadRequestException('Format request harus berupa multipart/form-data');
+      throw new BadRequestException(
+        'Format request harus berupa multipart/form-data',
+      );
     }
 
     const fileData = await fastifyReq.file();
@@ -31,14 +44,13 @@ export class ReportsController {
   }
 
   @Post()
-  async uploadReport(
-    @Req() req: any,
-    @GetUser('id') userId: string,
-  ) {
+  async uploadReport(@Req() req: any, @GetUser('id') userId: string) {
     const fastifyReq = req as FastifyRequest;
     // 1. Cek apakah format request berupa multipart
     if (!fastifyReq.isMultipart()) {
-      throw new BadRequestException('Format request harus berupa multipart/form-data');
+      throw new BadRequestException(
+        'Format request harus berupa multipart/form-data',
+      );
     }
 
     // 2. Ambil berkas berkas file
@@ -63,7 +75,9 @@ export class ReportsController {
     const description = (descField as any)?.value;
 
     if (isNaN(lat) || isNaN(lng)) {
-      throw new BadRequestException('Latitude dan longitude harus berupa angka desimal yang valid');
+      throw new BadRequestException(
+        'Latitude dan longitude harus berupa angka desimal yang valid',
+      );
     }
 
     return this.reportsService.createReport(
@@ -95,9 +109,7 @@ export class ReportsController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
-  deleteReport(@Param('id') reportId: string) {
-    return this.reportsService.deleteReport(reportId);
+  deleteReport(@Param('id') reportId: string, @GetUser('id') userId: string) {
+    return this.reportsService.deleteReport(reportId, userId);
   }
 }

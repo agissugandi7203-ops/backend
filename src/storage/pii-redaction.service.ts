@@ -27,9 +27,13 @@ export class PiiRedactionService implements OnModuleInit {
       if (keyFilePath) visionOptions.keyFilename = keyFilePath;
 
       this.visionClient = new vision.ImageAnnotatorClient(visionOptions);
-      this.logger.log('Google Cloud Vision API client successfully initialized');
+      this.logger.log(
+        'Google Cloud Vision API client successfully initialized',
+      );
     } catch (error) {
-      this.logger.error('Failed to initialize Google Cloud Vision client: ' + error.message);
+      this.logger.error(
+        'Failed to initialize Google Cloud Vision client: ' + error.message,
+      );
     }
   }
 
@@ -133,7 +137,9 @@ export class PiiRedactionService implements OnModuleInit {
 
       return await processedImage.toBuffer();
     } catch (error) {
-      this.logger.error('Error during PII redaction processing: ' + error.message);
+      this.logger.error(
+        'Error during PII redaction processing: ' + error.message,
+      );
       // Jika terjadi kegagalan proses AI, kembalikan gambar asli agar sistem tidak crash
       return imageBuffer;
     }

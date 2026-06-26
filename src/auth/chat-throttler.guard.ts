@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
@@ -7,7 +13,7 @@ export class ChatThrottlerGuard implements CanActivate {
   // Key: userId (UUID), Value: array timestamp (epoch millisecond)
   private readonly userRequestHistory = new Map<string, number[]>();
   private readonly WINDOW_MS = 60000; // 1 menit (60 detik)
-  private readonly MAX_LIMIT = 10;     // Maksimal 10 request per menit
+  private readonly MAX_LIMIT = 10; // Maksimal 10 request per menit
 
   constructor(private supabaseService: SupabaseService) {}
 
@@ -22,7 +28,7 @@ export class ChatThrottlerGuard implements CanActivate {
 
     try {
       const supabase = this.supabaseService.getClient();
-      
+
       // Ambil role user dari tabel profiles
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -42,7 +48,7 @@ export class ChatThrottlerGuard implements CanActivate {
       let timestamps = this.userRequestHistory.get(userId) || [];
 
       // Filter: Buang timestamp yang sudah di luar rentang waktu 1 menit terakhir
-      timestamps = timestamps.filter(time => now - time < this.WINDOW_MS);
+      timestamps = timestamps.filter((time) => now - time < this.WINDOW_MS);
 
       // Cek apakah jumlah request dalam 1 menit terakhir melebihi limit
       if (timestamps.length >= this.MAX_LIMIT) {

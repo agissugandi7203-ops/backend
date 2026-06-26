@@ -12,6 +12,7 @@ import { ReportsModule } from './reports/reports.module';
 import { OpenRouterModule } from './openrouter/openrouter.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
 import { ChatModule } from './chat/chat.module';
+import { GamificationModule } from './gamification/gamification.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ChatModule } from './chat/chat.module';
     OpenRouterModule,
     KnowledgeBaseModule,
     ChatModule,
+    GamificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

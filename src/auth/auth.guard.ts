@@ -23,7 +23,9 @@ export class AuthGuard implements CanActivate {
       const { data, error } = await supabase.auth.getUser(token);
 
       if (error || !data.user) {
-        throw new UnauthorizedException('Invalid or expired authentication token');
+        throw new UnauthorizedException(
+          'Invalid or expired authentication token',
+        );
       }
 
       // Simpan data user dari Supabase ke object request

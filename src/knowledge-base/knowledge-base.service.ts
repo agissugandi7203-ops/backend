@@ -13,10 +13,14 @@ export class KnowledgeBaseService {
     private openRouterService: OpenRouterService,
     private configService: ConfigService,
   ) {}
-  private chunkText(text: string, chunkSize: number = 800, chunkOverlap: number = 150): string[] {
+  private chunkText(
+    text: string,
+    chunkSize: number = 800,
+    chunkOverlap: number = 150,
+  ): string[] {
     const chunks: string[] = [];
     let start = 0;
-    
+
     while (start < text.length) {
       let end = start + chunkSize;
       if (end >= text.length) {
@@ -24,19 +28,19 @@ export class KnowledgeBaseService {
         chunks.push(text.substring(start, end).trim());
         break;
       }
-      
+
       // Cari spasi terdekat agar pemotongan rapi (tidak memotong kata)
       const nextSpace = text.indexOf(' ', end);
       if (nextSpace !== -1 && nextSpace - end < 50) {
         end = nextSpace;
       }
-      
+
       chunks.push(text.substring(start, end).trim());
       start = end - chunkOverlap;
       if (start <= 0 || start >= text.length) break;
     }
-    
-    return chunks.filter(c => c.length > 0);
+
+    return chunks.filter((c) => c.length > 0);
   }
 
   /**
@@ -44,23 +48,31 @@ export class KnowledgeBaseService {
    */
   async createDocument(dto: CreateDocumentDto) {
     this.logger.log(`Processing document: "${dto.title}"`);
-    
+
     try {
-      const chunkSize = Number(this.configService.get<number>('RAG_CHUNK_SIZE')) || 800;
-      const chunkOverlap = Number(this.configService.get<number>('RAG_CHUNK_OVERLAP')) || 150;
+      const chunkSize =
+        Number(this.configService.get<number>('RAG_CHUNK_SIZE')) || 800;
+      const chunkOverlap =
+        Number(this.configService.get<number>('RAG_CHUNK_OVERLAP')) || 150;
       const chunks = this.chunkText(dto.content, chunkSize, chunkOverlap);
-      this.logger.log(`Document "${dto.title}" split into ${chunks.length} chunks`);
-      
+      this.logger.log(
+        `Document "${dto.title}" split into ${chunks.length} chunks`,
+      );
+
       const savedChunks: any[] = [];
       const supabase = this.supabaseService.getClient();
-      
+
       for (let i = 0; i < chunks.length; i++) {
         const chunkContent = chunks[i];
-        const chunkTitle = chunks.length > 1 ? `${dto.title} - Bagian ${i + 1}` : dto.title;
-        
-        this.logger.log(`Generating embedding for chunk ${i + 1}/${chunks.length}`);
-        const embedding = await this.openRouterService.getEmbedding(chunkContent);
-        
+        const chunkTitle =
+          chunks.length > 1 ? `${dto.title} - Bagian ${i + 1}` : dto.title;
+
+        this.logger.log(
+          `Generating embedding for chunk ${i + 1}/${chunks.length}`,
+        );
+        const embedding =
+          await this.openRouterService.getEmbedding(chunkContent);
+
         const { data, error } = await supabase
           .from('knowledge_base')
           .insert({
@@ -86,7 +98,9 @@ export class KnowledgeBaseService {
         savedChunks.push(data);
       }
 
-      this.logger.log(`Document "${dto.title}" successfully ingested. Total chunks: ${chunks.length}`);
+      this.logger.log(
+        `Document "${dto.title}" successfully ingested. Total chunks: ${chunks.length}`,
+      );
       return {
         message: `Document successfully split into ${chunks.length} chunks and added to knowledge base`,
         documents: savedChunks,

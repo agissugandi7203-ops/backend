@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Delete, Param, Patch, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Delete,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -19,7 +30,10 @@ export class ProfilesController {
 
   @Post('onboard')
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  onboard(@GetUser('id') userId: string, @Body() onboardDto: OnboardProfileDto) {
+  onboard(
+    @GetUser('id') userId: string,
+    @Body() onboardDto: OnboardProfileDto,
+  ) {
     return this.profilesService.onboard(userId, onboardDto);
   }
 

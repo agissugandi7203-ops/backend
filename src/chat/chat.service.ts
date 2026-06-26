@@ -24,10 +24,17 @@ export class ChatService {
       const contextText = await this.retrieveContext(sanitizedMessage);
 
       // 2. Susun pesan instruksi sistem & multimodal content
-      const messages = this.buildMultimodalMessages(sanitizedMessage, contextText, dto);
+      const messages = this.buildMultimodalMessages(
+        sanitizedMessage,
+        contextText,
+        dto,
+      );
 
       // 3. Panggil OpenRouter
-      const reply = await this.openRouterService.getChatCompletion(messages, dto.model);
+      const reply = await this.openRouterService.getChatCompletion(
+        messages,
+        dto.model,
+      );
       return { reply };
     } catch (error) {
       this.logger.error(`Error processing instant chat: ${error.message}`);
@@ -50,10 +57,17 @@ export class ChatService {
       const contextText = await this.retrieveContext(sanitizedMessage);
 
       // 2. Susun pesan instruksi sistem & multimodal content
-      const messages = this.buildMultimodalMessages(sanitizedMessage, contextText, dto);
+      const messages = this.buildMultimodalMessages(
+        sanitizedMessage,
+        contextText,
+        dto,
+      );
 
       // 3. Panggil OpenRouter Stream API
-      return await this.openRouterService.getChatCompletionStream(messages, dto.model);
+      return await this.openRouterService.getChatCompletionStream(
+        messages,
+        dto.model,
+      );
     } catch (error) {
       this.logger.error(`Error starting chat stream: ${error.message}`);
       throw new HttpException(
@@ -76,11 +90,13 @@ export class ChatService {
       const { data: documents, error } = await supabase.rpc('match_documents', {
         query_embedding: queryEmbedding,
         match_threshold: 0.35, // Cocokkan regulasi dengan tingkat kemiripan min 35%
-        match_count: 3,        // Ambil 3 dokumen perda paling relevan
+        match_count: 3, // Ambil 3 dokumen perda paling relevan
       });
 
       if (error) {
-        this.logger.error(`Error calling match_documents RPC: ${error.message}`);
+        this.logger.error(
+          `Error calling match_documents RPC: ${error.message}`,
+        );
         return '';
       }
 
@@ -90,10 +106,15 @@ export class ChatService {
 
       // Gabungkan isi konten perda menjadi teks utuh sebagai konteks LLM
       return documents
-        .map((doc, idx) => `[Dokumen ${idx + 1}] Judul: ${doc.title}\nIsi: ${doc.content}`)
+        .map(
+          (doc, idx) =>
+            `[Dokumen ${idx + 1}] Judul: ${doc.title}\nIsi: ${doc.content}`,
+        )
         .join('\n\n');
     } catch (err) {
-      this.logger.error(`Failed to retrieve context from database: ${err.message}`);
+      this.logger.error(
+        `Failed to retrieve context from database: ${err.message}`,
+      );
       return 'Gagal memuat regulasi resmi kota dari database.';
     }
   }
@@ -106,7 +127,7 @@ export class ChatService {
 
     const checkSize = (base64Str: string | undefined, fieldName: string) => {
       if (!base64Str) return;
-      
+
       // Hitung perkiraan ukuran byte dari panjang string base64
       // 4 karakter base64 setara dengan 3 byte data asli
       const sizeInBytes = (base64Str.length * 3) / 4;
@@ -143,7 +164,7 @@ export class ChatService {
       /bypass\s+safety/i,
       /developer\s+mode/i,
       /you\s+are\s+now/i,
-      
+
       // Typoglycemia (Fuzzy targets)
       /ign(?:ore|roe|onre|ore)\s+prev(?:ious|ous|oius)\s+inst(?:ructions|uctions|rucions|rutions)/i,
       /ign(?:ore|roe|onre|ore)\s+syst(?:em|me|estm|em)\s+inst(?:ructions|uctions|rucions|rutions)/i,
@@ -160,11 +181,15 @@ export class ChatService {
     sanitized = sanitized.replace(spaceHexRegex, (match) => {
       try {
         const hexes = match.split(/\s+/);
-        const decoded = Buffer.from(hexes.map(h => parseInt(h, 16))).toString('utf-8');
+        const decoded = Buffer.from(hexes.map((h) => parseInt(h, 16))).toString(
+          'utf-8',
+        );
         if (/^[\x20-\x7E\r\n\t]+$/.test(decoded)) {
           for (const pattern of dangerousPatterns) {
             if (pattern.test(decoded)) {
-              this.logger.warn(`Prompt Injection (Hex Evasion) detected and redacted.`);
+              this.logger.warn(
+                `Prompt Injection (Hex Evasion) detected and redacted.`,
+              );
               return '[PROMPT_INJECTION]';
             }
           }
@@ -182,7 +207,9 @@ export class ChatService {
           if (/^[\x20-\x7E\r\n\t]+$/.test(decoded)) {
             for (const pattern of dangerousPatterns) {
               if (pattern.test(decoded)) {
-                this.logger.warn(`Prompt Injection (Hex Evasion) detected and redacted.`);
+                this.logger.warn(
+                  `Prompt Injection (Hex Evasion) detected and redacted.`,
+                );
                 return '[PROMPT_INJECTION]';
               }
             }
@@ -200,7 +227,9 @@ export class ChatService {
         if (/^[\x20-\x7E\r\n\t]+$/.test(decoded)) {
           for (const pattern of dangerousPatterns) {
             if (pattern.test(decoded)) {
-              this.logger.warn(`Prompt Injection (Base64 Evasion) detected and redacted.`);
+              this.logger.warn(
+                `Prompt Injection (Base64 Evasion) detected and redacted.`,
+              );
               return '[PROMPT_INJECTION]';
             }
           }
@@ -215,7 +244,9 @@ export class ChatService {
       const collapsed = match.replace(/\s+/g, '');
       for (const pattern of dangerousPatterns) {
         if (pattern.test(collapsed)) {
-          this.logger.warn(`Prompt Injection (Character Spacing Evasion) detected and redacted.`);
+          this.logger.warn(
+            `Prompt Injection (Character Spacing Evasion) detected and redacted.`,
+          );
           return '[PROMPT_INJECTION]';
         }
       }
@@ -236,7 +267,11 @@ export class ChatService {
   /**
    * Menyusun payload pesan multimodal OpenRouter
    */
-  private buildMultimodalMessages(userMessage: string, contextText: string, dto: ChatRequestDto): any[] {
+  private buildMultimodalMessages(
+    userMessage: string,
+    contextText: string,
+    dto: ChatRequestDto,
+  ): any[] {
     const systemPrompt = `
       Anda adalah Asisten Hukum & Peraturan Kota Genesis.id bernama Geni. Anda sangat ramah, hangat, menyambut, interaktif, dan cerdas.
       Tugas utama Anda adalah membantu warga memahami peraturan kota dengan sapaan hangat di awal pesan, lalu menyajikan penjelasan yang jelas, padat, dan tidak kaku (bersahabat).
@@ -251,18 +286,30 @@ export class ChatService {
       ${contextText}
     `;
 
-    const userContentArray: any[] = [
-      { type: 'text', text: userMessage }
-    ];
+    const messages: any[] = [];
+    messages.push({ role: 'system', content: systemPrompt });
+
+    // Prepend chat history (up to last 10 messages to avoid token bloating)
+    if (dto.history && dto.history.length > 0) {
+      const limitedHistory = dto.history.slice(-10);
+      for (const h of limitedHistory) {
+        messages.push({
+          role: h.sender === 'user' ? 'user' : 'assistant',
+          content: h.message,
+        });
+      }
+    }
+
+    const userContentArray: any[] = [{ type: 'text', text: userMessage }];
 
     // Lampirkan gambar jika ada
     if (dto.image) {
-      const imageUrl = dto.image.startsWith('data:') 
-        ? dto.image 
+      const imageUrl = dto.image.startsWith('data:')
+        ? dto.image
         : `data:image/jpeg;base64,${dto.image}`;
       userContentArray.push({
         type: 'image_url',
-        image_url: { url: imageUrl }
+        image_url: { url: imageUrl },
       });
     }
 
@@ -275,8 +322,8 @@ export class ChatService {
         type: 'file',
         file: {
           filename: 'uploaded_document.pdf',
-          file_data: pdfDataUrl
-        }
+          file_data: pdfDataUrl,
+        },
       });
     }
 
@@ -284,7 +331,7 @@ export class ChatService {
     if (dto.audio) {
       let rawBase64 = dto.audio;
       let format = 'wav';
-      
+
       // Jika dikirim sebagai data URL, pisahkan header dan datanya
       if (dto.audio.startsWith('data:')) {
         const parts = dto.audio.split(';base64,');
@@ -297,23 +344,29 @@ export class ChatService {
         type: 'input_audio',
         input_audio: {
           data: rawBase64,
-          format: format
-        }
+          format: format,
+        },
       });
     }
 
-    return [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userContentArray }
-    ];
+    messages.push({ role: 'user', content: userContentArray });
+
+    return messages;
   }
 
   /**
    * Transkripsi audio menggunakan OpenRouter Speech-To-Text API
    */
-  async transcribeAudio(base64Audio: string, format: string, model?: string): Promise<{ text: string }> {
+  async transcribeAudio(
+    base64Audio: string,
+    format: string,
+    model?: string,
+  ): Promise<{ text: string }> {
     if (!base64Audio) {
-      throw new HttpException('Audio data (base64) wajib disertakan', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Audio data (base64) wajib disertakan',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     try {
@@ -328,7 +381,11 @@ export class ChatService {
         audioFormat = mime.split('/')[1] || audioFormat;
       }
 
-      const text = await this.openRouterService.transcribeAudio(rawBase64, audioFormat, model);
+      const text = await this.openRouterService.transcribeAudio(
+        rawBase64,
+        audioFormat,
+        model,
+      );
       return { text };
     } catch (error) {
       this.logger.error(`Error in transcribeAudio service: ${error.message}`);

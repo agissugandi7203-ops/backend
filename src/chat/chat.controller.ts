@@ -1,4 +1,12 @@
-import { Controller, Post, Body, UseGuards, Res, HttpStatus, HttpException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Res,
+  HttpStatus,
+  HttpException,
+} from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { ChatThrottlerGuard } from '../auth/chat-throttler.guard';
 import { ChatService } from './chat.service';
@@ -36,7 +44,7 @@ export class ChatController {
     reply.raw.writeHead(HttpStatus.OK, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     });
 
@@ -52,7 +60,7 @@ export class ChatController {
 
         // Decode binary chunk ke string teks UTF-8
         const textChunk = decoder.decode(value, { stream: true });
-        
+
         // Tulis langsung ke socket client raw reply Fastify
         reply.raw.write(textChunk);
       }

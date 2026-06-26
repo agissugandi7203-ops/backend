@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OnboardProfileDto } from './dto/onboard-profile.dto';
 import { AdjustGamificationDto } from './dto/adjust-gamification.dto';
@@ -21,6 +25,13 @@ export class ProfilesService {
       throw new NotFoundException('Profile not found');
     }
 
+    // Query rank secara dinamis dari view global_leaderboard
+    const { data: rankData } = await supabase
+      .from('global_leaderboard')
+      .select('rank')
+      .eq('id', userId)
+      .maybeSingle();
+
     // 2. Ambil data lencana (badges) yang diperoleh
     const { data: badgesData, error: badgesError } = await supabase
       .from('profile_badges')
@@ -36,6 +47,7 @@ export class ProfilesService {
 
     return {
       ...profile,
+      rank: rankData?.rank || 1,
       badges: earnedBadges,
     };
   }
@@ -70,7 +82,9 @@ export class ProfilesService {
       .single();
 
     if (updateError || !updatedProfile) {
-      throw new BadRequestException('Failed to update profile onboarding: ' + updateError?.message);
+      throw new BadRequestException(
+        'Failed to update profile onboarding: ' + updateError?.message,
+      );
     }
 
     return this.getProfile(userId);
@@ -84,7 +98,9 @@ export class ProfilesService {
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw new BadRequestException('Failed to fetch profiles: ' + error.message);
+      throw new BadRequestException(
+        'Failed to fetch profiles: ' + error.message,
+      );
     }
     return data || [];
   }
@@ -96,7 +112,9 @@ export class ProfilesService {
     const { error } = await supabase.auth.admin.deleteUser(userId);
 
     if (error) {
-      throw new BadRequestException('Failed to delete user account: ' + error.message);
+      throw new BadRequestException(
+        'Failed to delete user account: ' + error.message,
+      );
     }
 
     return {
@@ -120,7 +138,9 @@ export class ProfilesService {
       .single();
 
     if (error || !data) {
-      throw new BadRequestException('Failed to adjust user gamification data: ' + error?.message);
+      throw new BadRequestException(
+        'Failed to adjust user gamification data: ' + error?.message,
+      );
     }
 
     return this.getProfile(userId);
@@ -137,7 +157,9 @@ export class ProfilesService {
       .single();
 
     if (error || !profile) {
-      throw new BadRequestException('Gagal mengambil data profil untuk reward: ' + error?.message);
+      throw new BadRequestException(
+        'Gagal mengambil data profil untuk reward: ' + error?.message,
+      );
     }
 
     const currentXp = profile.xp;
@@ -150,7 +172,7 @@ export class ProfilesService {
     const newXp = currentXp + 100;
     const newLevel = Math.floor(newXp / 1000) + 1;
     const newReportCount = currentReportCount + 1;
-    
+
     // Calculate streak
     let newStreak = 1;
     const todayStr = new Date().toISOString().split('T')[0];
@@ -185,7 +207,9 @@ export class ProfilesService {
       .eq('id', userId);
 
     if (updateError) {
-      throw new BadRequestException('Gagal memperbarui reward profil: ' + updateError.message);
+      throw new BadRequestException(
+        'Gagal memperbarui reward profil: ' + updateError.message,
+      );
     }
 
     // 4. Check & award badges

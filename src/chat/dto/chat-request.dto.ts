@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
 
 export class ChatRequestDto {
   @IsString()
@@ -11,7 +11,7 @@ export class ChatRequestDto {
 
   @IsOptional()
   @IsString()
-  pdf?: string;   // base64 string
+  pdf?: string; // base64 string
 
   @IsOptional()
   @IsString()
@@ -20,4 +20,8 @@ export class ChatRequestDto {
   @IsOptional()
   @IsString()
   model?: string; // AI Model selected
+
+  @IsOptional()
+  @IsArray()
+  history?: { sender: 'user' | 'bot' | 'assistant'; message: string }[];
 }

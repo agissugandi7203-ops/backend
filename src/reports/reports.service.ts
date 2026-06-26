@@ -28,25 +28,32 @@ export class ReportsService {
     const supabase = this.supabaseService.getClient();
 
     // 1. Cek duplikasi spasial menggunakan PostGIS RPC
-    const { data: duplicateId, error: rpcError } = await supabase.rpc('check_duplicate_report', {
-      p_lat: lat,
-      p_lng: lng,
-    });
+    const { data: duplicateId, error: rpcError } = await supabase.rpc(
+      'check_duplicate_report',
+      {
+        p_lat: lat,
+        p_lng: lng,
+      },
+    );
 
     if (rpcError) {
-      throw new BadRequestException('Gagal memverifikasi lokasi spasial: ' + rpcError.message);
+      throw new BadRequestException(
+        'Gagal memverifikasi lokasi spasial: ' + rpcError.message,
+      );
     }
 
     if (duplicateId) {
       return {
         isDuplicate: true,
-        message: 'Laporan serupa terdeteksi dalam radius 50 meter. Menggabungkan laporan...',
+        message:
+          'Laporan serupa terdeteksi dalam radius 50 meter. Menggabungkan laporan...',
         duplicateReportId: duplicateId,
       };
     }
 
     // 2. Lakukan sensor gambar PII (Wajah & Plat Nomor)
-    const sanitizedBuffer = await this.piiRedactionService.redactSensitiveInfo(fileBuffer);
+    const sanitizedBuffer =
+      await this.piiRedactionService.redactSensitiveInfo(fileBuffer);
 
     // 3. Buat nama file unik untuk diunggah ke Google Cloud Storage
     const fileExtension = fileMimeType.split('/')[1] || 'jpg';
@@ -55,9 +62,15 @@ export class ReportsService {
     // 4. Unggah ke Google Cloud Storage
     let imageUrl: string;
     try {
-      imageUrl = await this.gcsService.uploadFile(sanitizedBuffer, uniqueFileName, fileMimeType);
+      imageUrl = await this.gcsService.uploadFile(
+        sanitizedBuffer,
+        uniqueFileName,
+        fileMimeType,
+      );
     } catch (gcsError) {
-      throw new BadRequestException('Gagal mengunggah foto laporan ke storage: ' + gcsError.message);
+      throw new BadRequestException(
+        'Gagal mengunggah foto laporan ke storage: ' + gcsError.message,
+      );
     }
 
     // 5. Simpan data laporan spasial ke database Supabase
@@ -74,7 +87,9 @@ export class ReportsService {
       .single();
 
     if (insertError || !report) {
-      throw new BadRequestException('Gagal menyimpan laporan ke database: ' + insertError?.message);
+      throw new BadRequestException(
+        'Gagal menyimpan laporan ke database: ' + insertError?.message,
+      );
     }
 
     // Memicu klasifikasi AI di latar belakang (fire-and-forget)
@@ -129,7 +144,8 @@ export class ReportsService {
     ];
 
     try {
-      const responseText = await this.openRouterService.getChatCompletion(messages);
+      const responseText =
+        await this.openRouterService.getChatCompletion(messages);
       return {
         success: true,
         analysis: responseText,
@@ -160,7 +176,9 @@ export class ReportsService {
       .order('created_at', { ascending: false });
 
     if (error) {
-      throw new BadRequestException('Failed to fetch reports: ' + error.message);
+      throw new BadRequestException(
+        'Failed to fetch reports: ' + error.message,
+      );
     }
     return data || [];
   }
@@ -191,32 +209,82 @@ export class ReportsService {
       .single();
 
     if (error) {
-      throw new BadRequestException('Gagal memperbarui laporan: ' + error.message);
+      throw new BadRequestException(
+        'Gagal memperbarui laporan: ' + error.message,
+      );
     }
 
     // 2. Jika status berubah menjadi approved, berikan reward gamifikasi ke warga pelapor
-    if (updateData.status === 'approved' && oldReport && oldReport.status !== 'approved') {
+    if (
+      updateData.status === 'approved' &&
+      oldReport &&
+      oldReport.status !== 'approved'
+    ) {
       try {
         await this.profilesService.awardReportRewards(oldReport.reporter_id);
       } catch (rewardErr) {
         // Log error tapi jangan gagalkan respons utama admin
-        Logger.error(`Failed to award gamification rewards to user ${oldReport.reporter_id}: ${rewardErr.message}`, 'ReportsService');
+        Logger.error(
+          `Failed to award gamification rewards to user ${oldReport.reporter_id}: ${rewardErr.message}`,
+          'ReportsService',
+        );
       }
     }
 
     return data;
   }
 
-  async deleteReport(reportId: string) {
+  async deleteReport(reportId: string, userId: string) {
     const supabase = this.supabaseService.getClient();
+
+    // 1. Ambil data laporan terlebih dahulu
+    const { data: report, error: fetchError } = await supabase
+      .from('reports')
+      .select('reporter_id, status')
+      .eq('id', reportId)
+      .single();
+
+    if (fetchError || !report) {
+      throw new BadRequestException('Laporan tidak ditemukan');
+    }
+
+    // 2. Cek profil pengguna untuk mendapatkan perannya (role)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    const userRole = profile?.role || 'citizen';
+
+    // 3. Warga biasa hanya boleh menghapus laporannya sendiri yang DITOLAK (rejected)
+    if (userRole !== 'admin') {
+      if (report.reporter_id !== userId) {
+        throw new BadRequestException(
+          'Anda tidak memiliki hak akses untuk menghapus laporan ini',
+        );
+      }
+      if (report.status !== 'rejected') {
+        throw new BadRequestException(
+          'Hanya laporan dengan status ditolak yang dapat dihapus oleh warga',
+        );
+      }
+    }
+
+    // 4. Jalankan perintah hapus
     const { error } = await supabase
       .from('reports')
       .delete()
       .eq('id', reportId);
 
     if (error) {
-      throw new BadRequestException('Gagal menghapus laporan: ' + error.message);
+      throw new BadRequestException(
+        'Gagal menghapus laporan: ' + error.message,
+      );
     }
-    return { success: true, message: `Laporan dengan ID ${reportId} berhasil dihapus` };
+    return {
+      success: true,
+      message: `Laporan dengan ID ${reportId} berhasil dihapus`,
+    };
   }
 }

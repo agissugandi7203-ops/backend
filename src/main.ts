@@ -9,7 +9,7 @@ import multipart from '@fastify/multipart';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: true })
+    new FastifyAdapter({ logger: true }),
   );
 
   // Daftarkan fastify multipart untuk penanganan file upload
@@ -28,4 +28,3 @@ async function bootstrap() {
   await app.listen(Number(process.env.PORT ?? 3000), '0.0.0.0');
 }
 bootstrap();
-

@@ -34,11 +34,17 @@ export class GcsService implements OnModuleInit {
       this.storage = new Storage(storageOptions);
       this.logger.log('Google Cloud Storage client successfully initialized');
     } catch (error) {
-      this.logger.error('Failed to initialize Google Cloud Storage: ' + error.message);
+      this.logger.error(
+        'Failed to initialize Google Cloud Storage: ' + error.message,
+      );
     }
   }
 
-  async uploadFile(buffer: Buffer, fileName: string, contentType: string): Promise<string> {
+  async uploadFile(
+    buffer: Buffer,
+    fileName: string,
+    contentType: string,
+  ): Promise<string> {
     if (this.storage) {
       try {
         const bucket = this.storage.bucket(this.bucketName);
@@ -52,10 +58,14 @@ export class GcsService implements OnModuleInit {
         this.logger.log(`File successfully uploaded to GCS: ${fileName}`);
         return `https://storage.googleapis.com/${this.bucketName}/${fileName}`;
       } catch (gcsError) {
-        this.logger.error(`GCS upload failed, attempting fallback to Supabase: ${gcsError.message}`);
+        this.logger.error(
+          `GCS upload failed, attempting fallback to Supabase: ${gcsError.message}`,
+        );
       }
     } else {
-      this.logger.warn('GCS storage client not initialized, attempting fallback to Supabase.');
+      this.logger.warn(
+        'GCS storage client not initialized, attempting fallback to Supabase.',
+      );
     }
 
     // Fallback ke Supabase Storage
@@ -72,11 +82,19 @@ export class GcsService implements OnModuleInit {
 
       if (error) {
         // Jika error bucket tidak ditemukan, coba buat bucket-nya
-        if (error.message.includes('not found') || error.message.includes('bucket')) {
-          this.logger.log("Attempting to create 'reports' bucket in Supabase storage...");
-          const { error: createError } = await supabase.storage.createBucket('reports', {
-            public: true,
-          });
+        if (
+          error.message.includes('not found') ||
+          error.message.includes('bucket')
+        ) {
+          this.logger.log(
+            "Attempting to create 'reports' bucket in Supabase storage...",
+          );
+          const { error: createError } = await supabase.storage.createBucket(
+            'reports',
+            {
+              public: true,
+            },
+          );
           if (!createError) {
             const { error: retryError } = await supabase.storage
               .from('reports')
@@ -95,15 +113,20 @@ export class GcsService implements OnModuleInit {
         }
       }
 
-      this.logger.log(`File successfully uploaded to Supabase Storage fallback: ${fileName}`);
+      this.logger.log(
+        `File successfully uploaded to Supabase Storage fallback: ${fileName}`,
+      );
       return `${supabaseUrl}/storage/v1/object/public/reports/${fileName}`;
     } catch (supabaseError) {
-      this.logger.error(`Supabase Storage upload failed: ${supabaseError.message}`);
-      
+      this.logger.error(
+        `Supabase Storage upload failed: ${supabaseError.message}`,
+      );
+
       // Fallback terakhir: Placeholder premium urban waste / cleanup agar tidak melempar error HTTP 500
-      this.logger.warn('Using high-quality fallback placeholder image URL to prevent HTTP 500');
+      this.logger.warn(
+        'Using high-quality fallback placeholder image URL to prevent HTTP 500',
+      );
       return 'https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?auto=format&fit=crop&q=80&w=1000';
     }
   }
 }
-

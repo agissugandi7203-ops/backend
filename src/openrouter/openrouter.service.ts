@@ -11,11 +11,17 @@ export class OpenRouterService {
 
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('OPENROUTER_API_KEY') || '';
-    this.defaultModel = this.configService.get<string>('OPENROUTER_MODEL') || 'google/gemini-2.5-flash';
-    this.embeddingModel = this.configService.get<string>('OPENROUTER_EMBEDDING_MODEL') || 'google/gemini-embedding-2';
+    this.defaultModel =
+      this.configService.get<string>('OPENROUTER_MODEL') ||
+      'google/gemini-2.5-flash';
+    this.embeddingModel =
+      this.configService.get<string>('OPENROUTER_EMBEDDING_MODEL') ||
+      'google/gemini-embedding-2';
 
     if (!this.apiKey) {
-      this.logger.warn('OPENROUTER_API_KEY is not defined in environment variables. AI features will be disabled!');
+      this.logger.warn(
+        'OPENROUTER_API_KEY is not defined in environment variables. AI features will be disabled!',
+      );
     }
   }
 
@@ -31,7 +37,7 @@ export class OpenRouterService {
       const response = await fetch(`${this.baseUrl}/embeddings`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -43,7 +49,9 @@ export class OpenRouterService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenRouter Embeddings API returned status ${response.status}: ${errorText}`);
+        throw new Error(
+          `OpenRouter Embeddings API returned status ${response.status}: ${errorText}`,
+        );
       }
 
       const result = await response.json();
@@ -62,7 +70,10 @@ export class OpenRouterService {
   /**
    * Mengirim request chat completion dengan streaming (kembali berupa raw Response stream)
    */
-  async getChatCompletionStream(messages: any[], model?: string): Promise<Response> {
+  async getChatCompletionStream(
+    messages: any[],
+    model?: string,
+  ): Promise<Response> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key is not configured.');
     }
@@ -71,7 +82,7 @@ export class OpenRouterService {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://genesisHub.web.id',
           'X-Title': 'GenesisHub Smart City Portal',
@@ -85,7 +96,9 @@ export class OpenRouterService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenRouter Completions API returned status ${response.status}: ${errorText}`);
+        throw new Error(
+          `OpenRouter Completions API returned status ${response.status}: ${errorText}`,
+        );
       }
 
       return response;
@@ -107,7 +120,7 @@ export class OpenRouterService {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://genesisHub.web.id',
           'X-Title': 'GenesisHub Smart City Portal',
@@ -121,7 +134,9 @@ export class OpenRouterService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenRouter Completions API returned status ${response.status}: ${errorText}`);
+        throw new Error(
+          `OpenRouter Completions API returned status ${response.status}: ${errorText}`,
+        );
       }
 
       const result = await response.json();
@@ -180,7 +195,7 @@ export class OpenRouterService {
 
     try {
       const responseText = await this.getChatCompletion(messages);
-      
+
       // Bersihkan string dari format markdown ```json ... ``` jika ada
       let cleanedJson = responseText.trim();
       if (cleanedJson.startsWith('```json')) {
@@ -193,7 +208,9 @@ export class OpenRouterService {
 
       return JSON.parse(cleanedJson);
     } catch (error) {
-      this.logger.error(`Error classifying image via OpenRouter: ${error.message}`);
+      this.logger.error(
+        `Error classifying image via OpenRouter: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -201,7 +218,11 @@ export class OpenRouterService {
   /**
    * Mengirim base64 audio ke OpenRouter untuk Speech-To-Text (transkripsi)
    */
-  async transcribeAudio(base64Audio: string, format: string, model?: string): Promise<string> {
+  async transcribeAudio(
+    base64Audio: string,
+    format: string,
+    model?: string,
+  ): Promise<string> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key is not configured.');
     }
@@ -210,7 +231,7 @@ export class OpenRouterService {
       const response = await fetch(`${this.baseUrl}/audio/transcriptions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -224,12 +245,16 @@ export class OpenRouterService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`OpenRouter STT API returned status ${response.status}: ${errorText}`);
+        throw new Error(
+          `OpenRouter STT API returned status ${response.status}: ${errorText}`,
+        );
       }
 
       const result = await response.json();
       if (!result || typeof result.text !== 'string') {
-        throw new Error('Invalid transcription response format from OpenRouter');
+        throw new Error(
+          'Invalid transcription response format from OpenRouter',
+        );
       }
 
       return result.text;

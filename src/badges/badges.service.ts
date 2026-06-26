@@ -13,7 +13,9 @@ export class BadgesService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      throw new BadRequestException('Failed to fetch badges catalog: ' + error.message);
+      throw new BadRequestException(
+        'Failed to fetch badges catalog: ' + error.message,
+      );
     }
 
     return data || [];
@@ -39,11 +41,15 @@ export class BadgesService {
 
     if (insertError) {
       throw new BadRequestException(
-        'Failed to award badge (already awarded or invalid user): ' + insertError.message,
+        'Failed to award badge (already awarded or invalid user): ' +
+          insertError.message,
       );
     }
 
-    return { success: true, message: `Badge ${badgeCode} awarded successfully` };
+    return {
+      success: true,
+      message: `Badge ${badgeCode} awarded successfully`,
+    };
   }
 
   async revokeBadge(userId: string, badgeCode: string) {
@@ -67,9 +73,14 @@ export class BadgesService {
       .eq('badge_id', badge.id);
 
     if (deleteError) {
-      throw new BadRequestException('Failed to revoke badge: ' + deleteError.message);
+      throw new BadRequestException(
+        'Failed to revoke badge: ' + deleteError.message,
+      );
     }
 
-    return { success: true, message: `Badge ${badgeCode} revoked successfully` };
+    return {
+      success: true,
+      message: `Badge ${badgeCode} revoked successfully`,
+    };
   }
 }
