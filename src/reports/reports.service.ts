@@ -168,12 +168,29 @@ export class ReportsService {
     }
   }
 
-  async getReports() {
+  async getReports(userId: string) {
     const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase
+
+    // 1. Ambil data role user dari profiles
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    const role = profile?.role || 'citizen';
+
+    // 2. Buat query dasar
+    let query = supabase
       .from('reports')
-      .select('*, profiles(username, full_name, avatar_url)')
-      .order('created_at', { ascending: false });
+      .select('*, profiles(username, full_name, avatar_url)');
+
+    // Jika user adalah citizen, hanya tampilkan laporan buatannya sendiri
+    if (role !== 'admin') {
+      query = query.eq('reporter_id', userId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       throw new BadRequestException(

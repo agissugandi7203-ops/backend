@@ -91,8 +91,8 @@ export class ReportsController {
   }
 
   @Get()
-  getReports() {
-    return this.reportsService.getReports();
+  getReports(@GetUser('id') userId: string) {
+    return this.reportsService.getReports(userId);
   }
 
   // --- Endpoint Khusus Admin ---

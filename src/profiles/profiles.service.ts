@@ -2,14 +2,19 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OnboardProfileDto } from './dto/onboard-profile.dto';
 import { AdjustGamificationDto } from './dto/adjust-gamification.dto';
+import { GamificationService } from '../gamification/gamification.service';
 
 @Injectable()
 export class ProfilesService {
-  constructor(private supabaseService: SupabaseService) {}
+  constructor(
+    private supabaseService: SupabaseService,
+    private gamificationService: GamificationService,
+  ) {}
 
   async getProfile(userId: string) {
     const supabase = this.supabaseService.getClient();
@@ -147,9 +152,19 @@ export class ProfilesService {
   }
 
   async awardReportRewards(userId: string) {
+    // 1. Selesaikan tantangan harian 'report_1_waste' secara backend jika belum diselesaikan hari ini
+    try {
+      await this.gamificationService.completeChallenge(userId, 'report_1_waste');
+    } catch (err) {
+      Logger.error(
+        `Failed to complete daily challenge 'report_1_waste' for user ${userId}: ${err.message}`,
+        'ProfilesService',
+      );
+    }
+
     const supabase = this.supabaseService.getClient();
 
-    // 1. Fetch current gamification state
+    // 2. Fetch current gamification state (setelah challenge selesai, agar XP terupdate dibaca)
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('xp, level, report_count, current_streak, last_report_date')
@@ -168,7 +183,7 @@ export class ProfilesService {
     const currentStreak = profile.current_streak;
     const lastReportDate = profile.last_report_date;
 
-    // 2. Calculate new values
+    // 3. Calculate new values (reward approval report = +100 XP)
     const newXp = currentXp + 100;
     const newLevel = Math.floor(newXp / 1000) + 1;
     const newReportCount = currentReportCount + 1;
