@@ -56,9 +56,11 @@ async function bootstrap() {
     },
   });
 
-  // Aktifkan CORS agar Flutter Web/Mobile local dapat terhubung
+  // Aktifkan CORS agar Flutter Web/Mobile local dan Next.js dapat terhubung
   app.enableCors({
-    origin: '*',
+    origin: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization, x-api-key',
     credentials: true,
   });
 
