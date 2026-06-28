@@ -62,7 +62,8 @@ export class ChatController {
     // Set header Fastify untuk Server-Sent Events (SSE)
     reply.raw.writeHead(HttpStatus.OK, {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
       Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     });
