@@ -92,7 +92,7 @@ export class OpenRouterService {
           model: model || this.defaultModel,
           messages,
           stream: true,
-          ...(webSearch ? { plugins: [{ id: 'web' }] } : {}),
+          ...(webSearch ? { tools: [{ type: 'openrouter:web_search' }] } : {}),
         }),
       });
 
@@ -135,7 +135,7 @@ export class OpenRouterService {
           model: model || this.defaultModel,
           messages,
           stream: false,
-          ...(webSearch ? { plugins: [{ id: 'web' }] } : {}),
+          ...(webSearch ? { tools: [{ type: 'openrouter:web_search' }] } : {}),
         }),
       });
 
