@@ -80,6 +80,8 @@ export class OpenRouterService {
     }
 
     try {
+      const selectedModel = model || this.defaultModel;
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -89,10 +91,21 @@ export class OpenRouterService {
           'X-Title': 'GenesisHub Smart City Portal',
         },
         body: JSON.stringify({
-          model: model || this.defaultModel,
+          model: webSearch ? `${selectedModel}:online` : selectedModel,
           messages,
           stream: true,
-          ...(webSearch ? { tools: [{ type: 'openrouter:web_search' }] } : {}),
+          ...(webSearch
+            ? {
+                plugins: [
+                  {
+                    id: 'web',
+                    max_results: 5,
+                    search_prompt:
+                      'Pencarian web dilakukan pada tanggal hari ini. Gunakan hasil pencarian web berikut untuk menjawab pertanyaan pengguna secara akurat.\n\nPENTING: Sertakan sumber kutipan menggunakan tautan markdown dengan nama domain.\nContoh: [kompas.com](https://www.kompas.com/some-page).',
+                  },
+                ],
+              }
+            : {}),
         }),
       });
 
@@ -117,12 +130,14 @@ export class OpenRouterService {
     messages: any[],
     model?: string,
     webSearch?: boolean,
-  ): Promise<string> {
+  ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key is not configured.');
     }
 
     try {
+      const selectedModel = model || this.defaultModel;
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -132,10 +147,21 @@ export class OpenRouterService {
           'X-Title': 'GenesisHub Smart City Portal',
         },
         body: JSON.stringify({
-          model: model || this.defaultModel,
+          model: webSearch ? `${selectedModel}:online` : selectedModel,
           messages,
           stream: false,
-          ...(webSearch ? { tools: [{ type: 'openrouter:web_search' }] } : {}),
+          ...(webSearch
+            ? {
+                plugins: [
+                  {
+                    id: 'web',
+                    max_results: 5,
+                    search_prompt:
+                      'Pencarian web dilakukan pada tanggal hari ini. Gunakan hasil pencarian web berikut untuk menjawab pertanyaan pengguna secara akurat.\n\nPENTING: Sertakan sumber kutipan menggunakan tautan markdown dengan nama domain.\nContoh: [kompas.com](https://www.kompas.com/some-page).',
+                  },
+                ],
+              }
+            : {}),
         }),
       });
 
@@ -147,12 +173,16 @@ export class OpenRouterService {
       }
 
       const result = await response.json();
-      const content = result.choices?.[0]?.message?.content;
+      const message = result.choices?.[0]?.message;
+      const content = message?.content;
       if (content === undefined) {
         throw new Error('Invalid chat completion response from OpenRouter');
       }
 
-      return content;
+      return {
+        content,
+        annotations: message?.annotations,
+      };
     } catch (error) {
       this.logger.error(`Error generating chat completion: ${error.message}`);
       throw error;
@@ -201,10 +231,10 @@ export class OpenRouterService {
     ];
 
     try {
-      const responseText = await this.getChatCompletion(messages);
+      const result = await this.getChatCompletion(messages);
 
       // Bersihkan string dari format markdown ```json ... ``` jika ada
-      let cleanedJson = responseText.trim();
+      let cleanedJson = result.content.trim();
       if (cleanedJson.startsWith('```json')) {
         cleanedJson = cleanedJson.substring(7);
       }

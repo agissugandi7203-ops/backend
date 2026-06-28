@@ -15,7 +15,7 @@ export class ChatService {
   /**
    * Pemrosesan Chatbot RAG Standar (Respons Instan)
    */
-  async processChat(dto: ChatRequestDto): Promise<{ reply: string }> {
+  async processChat(dto: ChatRequestDto): Promise<{ reply: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     this.validatePayloadSizes(dto);
     const sanitizedMessage = this.sanitizeInput(dto.message);
 
@@ -31,12 +31,12 @@ export class ChatService {
       );
 
       // 3. Panggil OpenRouter
-      const reply = await this.openRouterService.getChatCompletion(
+      const result = await this.openRouterService.getChatCompletion(
         messages,
         dto.model,
         dto.webSearch,
       );
-      return { reply };
+      return { reply: result.content, annotations: result.annotations };
     } catch (error) {
       this.logger.error(`Error processing instant chat: ${error.message}`);
       throw new HttpException(
@@ -282,21 +282,29 @@ export class ChatService {
       day: 'numeric',
       timeZone: 'Asia/Jakarta',
     };
+    const timeOptions: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Jakarta',
+    };
     const currentIndonesianDate = now.toLocaleDateString('id-ID', dateOptions);
+    const currentIndonesianTime = now.toLocaleTimeString('id-ID', timeOptions);
 
     const webSearchGuideline = dto.webSearch
-      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Anda memiliki akses penuh ke alat 'openrouter:web_search' untuk menjelajahi internet secara langsung. Jika pertanyaan pengguna membutuhkan data waktu nyata (real-time), peristiwa terbaru, berita terkini setelah tahun 2024, atau konfirmasi fakta terkini di tahun berjalan (${now.getFullYear()}), Anda WAJIB memicu/menggunakan alat pencarian web (web_search) terlebih dahulu sebelum merespons. JANGAN menebak atau menggunakan basis data lama Anda.`
+      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Sistem telah secara otomatis melakukan pencarian web dan menyisipkan hasil pencarian terkini ke dalam konteks percakapan ini. Gunakan HANYA data dari hasil pencarian web tersebut untuk menjawab pertanyaan yang membutuhkan informasi terkini (berita, peristiwa, data ${now.getFullYear()}, dll). JANGAN mengarang fakta. Jika hasil pencarian tidak memuat jawaban, katakan secara jujur bahwa data belum tersedia di hasil pencarian. Selalu sertakan sumber kutipan sebagai tautan markdown.`
       : '';
 
     const systemPrompt = `
-      Anda adalah Asisten Hukum & Peraturan Kota Genesis.id bernama Geni. Anda sangat ramah, hangat, menyambut, interaktif, dan cerdas.
+      Anda adalah Asisten Hukum & Peraturan Kota Genesis bernama Geni. Anda sangat ramah, hangat, menyambut, interaktif, dan cerdas.
       Tugas utama Anda adalah membantu warga memahami peraturan kota dengan sapaan hangat di awal pesan, lalu menyajikan penjelasan yang jelas, padat, dan tidak kaku (bersahabat).
 
       INFORMASI WAKTU NYATA & KETENTUAN SANGAT KRUSIAL:
-      - Tanggal Hari Ini: ${currentIndonesianDate}. Semua rujukan "saat ini", "sekarang", "hari ini", atau tahun berjalan mengacu pada waktu tersebut.${webSearchGuideline}
+      - Tanggal & Waktu Saat Ini: ${currentIndonesianDate}, pukul ${currentIndonesianTime} WIB. Semua rujukan "saat ini", "sekarang", "hari ini", "jam berapa", atau tahun berjalan WAJIB mengacu pada waktu tersebut secara tepat. JANGAN PERNAH mengarang atau menebak tanggal/waktu lain.${webSearchGuideline}
 
       PANDUAN RESPONS:
-      1. MENYAMBUT & RAMAH: Mulailah pesan dengan sapaan hangat yang interaktif, seperti "Halo Kak! 👋" atau "Selamat datang di Genesis.id! 😊" atau "Senang bisa membantu Anda! 🌱". Buat warga merasa diterima dan didengarkan.
+      1. MENYAMBUT & RAMAH: Mulailah pesan dengan sapaan hangat yang interaktif, seperti "Halo Kak! 👋" atau "Selamat datang di Genesis! 😊" atau "Senang bisa membantu Anda! 🌱". Buat warga merasa diterima dan didengarkan.
       2. CEPAT & TO-THE-POINT: Sajikan jawaban secara padat, efektif, dan langsung menjawab inti pertanyaan (to-the-point) demi mempercepat waktu respons (latensi rendah). Hindari kalimat hukum yang berbelit-belit dan kaku.
       3. STRUKTUR MARKDOWN INDAH: Susun jawaban Anda menggunakan format Markdown yang rapi dan terstruktur (tebal, miring, daftar poin, kutipan, bahkan tabel sederhana jika membandingkan data) agar sangat mudah dipahami warga secara instan di layar HP mereka.
       4. GENTLE DEFLECTION (PENGALIHAN RAMAH): Jika warga menanyakan hal di luar topik regulasi resmi atau di luar konteks kota, JANGAN PERNAH menolak langsung secara kasar atau kaku (seperti "Saya tidak bisa menjawab itu" atau "Maaf saya hanya diprogram untuk..."). Sebaliknya, jawablah dengan mengaitkan pertanyaan tersebut secara kreatif dan santun ke konteks aturan lingkungan, kenyamanan hidup warga, kebersihan kota, atau ketertiban umum. Berikan jembatan kalimat pengalihan yang mulus, misalnya mengarahkan mereka untuk memeriksa regulasi kota terkait atau menyarankan langkah positif sebagai warga yang baik. Jaga agar percakapan tetap mengalir hangat dan mendidik!
