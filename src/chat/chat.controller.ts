@@ -12,7 +12,10 @@ import { ChatThrottlerGuard } from '../auth/chat-throttler.guard';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import type { FastifyReply } from 'fastify';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 
+@ApiTags('Chatbot RAG (Ask AI)')
+@ApiBearerAuth('JWT-auth')
 @Controller('chat')
 @UseGuards(AuthGuard, ChatThrottlerGuard)
 export class ChatController {
@@ -22,6 +25,14 @@ export class ChatController {
    * Endpoint Chat Warga Instan (Menerima jawaban lengkap sekaligus)
    */
   @Post()
+  @ApiOperation({
+    summary: 'Chat Warga Instan',
+    description: 'Mengajukan pertanyaan interaktif kepada Chatbot RAG Genesis.id untuk mendapatkan respon lengkap secara langsung (non-streaming) mengenai regulasi sampah dan pelaporan.',
+  })
+  @ApiBody({ type: ChatRequestDto })
+  @ApiResponse({ status: 201, description: 'Respon chatbot berhasil disusun.' })
+  @ApiResponse({ status: 401, description: 'Pengguna tidak terautentikasi.' })
+  @ApiResponse({ status: 429, description: 'Batas limitasi pesan tercapai (Throttled).' })
   async instantChat(@Body() dto: ChatRequestDto) {
     return this.chatService.processChat(dto);
   }
@@ -30,6 +41,14 @@ export class ChatController {
    * Endpoint Chat Warga Streaming (Menerima jawaban karakter demi karakter lewat Server-Sent Events)
    */
   @Post('stream')
+  @ApiOperation({
+    summary: 'Chat Warga Streaming (SSE)',
+    description: 'Mengajukan pertanyaan interaktif dengan respon karakter demi karakter secara real-time lewat Server-Sent Events (SSE). Cocok untuk antarmuka chat bergaya interaktif modern.',
+  })
+  @ApiBody({ type: ChatRequestDto })
+  @ApiResponse({ status: 201, description: 'Streaming SSE dimulai.' })
+  @ApiResponse({ status: 401, description: 'Pengguna tidak terautentikasi.' })
+  @ApiResponse({ status: 429, description: 'Batas limitasi pesan tercapai.' })
   async streamingChat(@Body() dto: ChatRequestDto, @Res() reply: any) {
     const response = await this.chatService.processChatStream(dto);
 
@@ -78,6 +97,23 @@ export class ChatController {
    * Endpoint Transkripsi Audio Speech-To-Text (OpenRouter API)
    */
   @Post('transcribe')
+  @ApiOperation({
+    summary: 'Transkripsi Audio Speech-to-Text (STT)',
+    description: 'Mentranskripsi rekaman audio suara warga (dalam format base64) menjadi teks interaktif menggunakan API transkripsi pintar di OpenRouter.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        audio: { type: 'string', description: 'Rekaman audio yang dienkode dalam bentuk Base64' },
+        format: { type: 'string', description: 'Format file audio (e.g. mp3, m4a, wav)' },
+        model: { type: 'string', description: 'Model transkripsi opsional (e.g. whisper-large-v3)' },
+      },
+      required: ['audio', 'format'],
+    }
+  })
+  @ApiResponse({ status: 201, description: 'Transkripsi audio berhasil.' })
+  @ApiResponse({ status: 401, description: 'Pengguna tidak terautentikasi.' })
   async transcribeAudio(
     @Body('audio') base64Audio: string,
     @Body('format') format: string,

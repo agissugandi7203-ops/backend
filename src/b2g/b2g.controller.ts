@@ -49,6 +49,17 @@ export class B2gController {
     });
   }
 
+  @Get('cities')
+  @ApiOperation({
+    summary: 'Daftar Kota / Kabupaten Terdaftar',
+    description: 'Menampilkan daftar unik nama Kota atau Kabupaten yang terdaftar di database untuk mempermudah sinkronisasi filter di sistem pemantauan.',
+  })
+  @ApiResponse({ status: 200, description: 'Daftar kota berhasil diambil.' })
+  @ApiResponse({ status: 401, description: 'Kunci API (x-api-key) tidak lengkap atau tidak valid.' })
+  getCities() {
+    return this.b2gService.getCities();
+  }
+
   @Get('summary')
   @ApiOperation({
     summary: 'Ringkasan Statistik Spasial Wilayah',

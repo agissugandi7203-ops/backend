@@ -115,6 +115,24 @@ export class B2gService {
     });
   }
 
+  async getCities() {
+    const supabase = this.supabaseService.getClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('city_or_district')
+      .not('city_or_district', 'is', null);
+
+    if (error) {
+      throw new BadRequestException('Gagal mengambil daftar kota: ' + error.message);
+    }
+
+    const cities = Array.from(new Set(data.map((p: any) => p.city_or_district as string)))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+
+    return cities;
+  }
+
   async getSummary(city_or_district?: string) {
     const supabase = this.supabaseService.getClient();
 
