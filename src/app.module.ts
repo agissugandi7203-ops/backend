@@ -13,6 +13,7 @@ import { OpenRouterModule } from './openrouter/openrouter.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
 import { ChatModule } from './chat/chat.module';
 import { GamificationModule } from './gamification/gamification.module';
+import { B2gModule } from './b2g/b2g.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { GamificationModule } from './gamification/gamification.module';
     KnowledgeBaseModule,
     ChatModule,
     GamificationModule,
+    B2gModule,
   ],
   controllers: [AppController],
   providers: [AppService],

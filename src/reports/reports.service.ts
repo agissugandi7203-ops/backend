@@ -200,6 +200,50 @@ export class ReportsService {
     return data || [];
   }
 
+  async getReportsForCleaners() {
+    const supabase = this.supabaseService.getClient();
+
+    const { data, error } = await supabase
+      .from('reports')
+      .select('*, profiles(username, full_name, avatar_url)')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new BadRequestException(
+        'Gagal mengambil laporan untuk petugas kebersihan: ' + error.message,
+      );
+    }
+
+    return (data || []).map((report: any) => {
+      let latitude = 0.0;
+      let longitude = 0.0;
+
+      if (report.location && report.location.coordinates) {
+        longitude = report.location.coordinates[0];
+        latitude = report.location.coordinates[1];
+      }
+
+      return {
+        id: report.id,
+        reporter_id: report.reporter_id,
+        image_url: report.image_url,
+        description: report.description,
+        status: report.status,
+        confidence_score: report.confidence_score,
+        waste_type: report.waste_type,
+        danger_level: report.danger_level,
+        latitude,
+        longitude,
+        google_maps_url: `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`,
+        created_at: report.created_at,
+        updated_at: report.updated_at,
+        profiles: report.profiles,
+      };
+    });
+  }
+
+
   async updateReport(
     reportId: string,
     updateData: {

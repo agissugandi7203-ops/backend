@@ -90,6 +90,11 @@ export class ReportsController {
     );
   }
 
+  @Get('cleaners')
+  getReportsForCleaners() {
+    return this.reportsService.getReportsForCleaners();
+  }
+
   @Get()
   getReports(@GetUser('id') userId: string) {
     return this.reportsService.getReports(userId);
