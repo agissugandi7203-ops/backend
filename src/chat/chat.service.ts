@@ -20,7 +20,7 @@ export class ChatService {
     const sanitizedMessage = this.sanitizeInput(dto.message);
 
     try {
-      // 1. Cari konteks perda yang relevan dari database (RAG)
+       // 1. Cari konteks perda yang relevan dari database (RAG)
       const contextText = await this.retrieveContext(sanitizedMessage);
 
       // 2. Susun pesan instruksi sistem & multimodal content
@@ -34,6 +34,7 @@ export class ChatService {
       const reply = await this.openRouterService.getChatCompletion(
         messages,
         dto.model,
+        dto.webSearch,
       );
       return { reply };
     } catch (error) {
@@ -67,6 +68,7 @@ export class ChatService {
       return await this.openRouterService.getChatCompletionStream(
         messages,
         dto.model,
+        dto.webSearch,
       );
     } catch (error) {
       this.logger.error(`Error starting chat stream: ${error.message}`);

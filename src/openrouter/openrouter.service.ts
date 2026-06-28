@@ -73,6 +73,7 @@ export class OpenRouterService {
   async getChatCompletionStream(
     messages: any[],
     model?: string,
+    webSearch?: boolean,
   ): Promise<Response> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key is not configured.');
@@ -91,6 +92,7 @@ export class OpenRouterService {
           model: model || this.defaultModel,
           messages,
           stream: true,
+          ...(webSearch ? { plugins: [{ id: 'web' }] } : {}),
         }),
       });
 
@@ -111,7 +113,11 @@ export class OpenRouterService {
   /**
    * Mengirim request chat completion secara instan (non-streaming)
    */
-  async getChatCompletion(messages: any[], model?: string): Promise<string> {
+  async getChatCompletion(
+    messages: any[],
+    model?: string,
+    webSearch?: boolean,
+  ): Promise<string> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key is not configured.');
     }
@@ -129,6 +135,7 @@ export class OpenRouterService {
           model: model || this.defaultModel,
           messages,
           stream: false,
+          ...(webSearch ? { plugins: [{ id: 'web' }] } : {}),
         }),
       });
 

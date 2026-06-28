@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsBoolean } from 'class-validator';
 
 export class ChatRequestDto {
   @IsString()
@@ -24,4 +24,8 @@ export class ChatRequestDto {
   @IsOptional()
   @IsArray()
   history?: { sender: 'user' | 'bot' | 'assistant'; message: string }[];
+
+  @IsOptional()
+  @IsBoolean()
+  webSearch?: boolean; // Enable OpenRouter web plugin grounding
 }
