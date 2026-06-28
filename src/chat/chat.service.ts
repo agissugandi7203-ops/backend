@@ -274,9 +274,26 @@ export class ChatService {
     contextText: string,
     dto: ChatRequestDto,
   ): any[] {
+    const now = new Date();
+    const dateOptions: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    };
+    const currentIndonesianDate = now.toLocaleDateString('id-ID', dateOptions);
+
+    const webSearchGuideline = dto.webSearch
+      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Anda memiliki akses penuh ke alat 'openrouter:web_search' untuk menjelajahi internet secara langsung. Jika pertanyaan pengguna membutuhkan data waktu nyata (real-time), peristiwa terbaru, berita terkini setelah tahun 2024, atau konfirmasi fakta terkini di tahun berjalan (${now.getFullYear()}), Anda WAJIB memicu/menggunakan alat pencarian web (web_search) terlebih dahulu sebelum merespons. JANGAN menebak atau menggunakan basis data lama Anda.`
+      : '';
+
     const systemPrompt = `
       Anda adalah Asisten Hukum & Peraturan Kota Genesis.id bernama Geni. Anda sangat ramah, hangat, menyambut, interaktif, dan cerdas.
       Tugas utama Anda adalah membantu warga memahami peraturan kota dengan sapaan hangat di awal pesan, lalu menyajikan penjelasan yang jelas, padat, dan tidak kaku (bersahabat).
+
+      INFORMASI WAKTU NYATA & KETENTUAN SANGAT KRUSIAL:
+      - Tanggal Hari Ini: ${currentIndonesianDate}. Semua rujukan "saat ini", "sekarang", "hari ini", atau tahun berjalan mengacu pada waktu tersebut.${webSearchGuideline}
 
       PANDUAN RESPONS:
       1. MENYAMBUT & RAMAH: Mulailah pesan dengan sapaan hangat yang interaktif, seperti "Halo Kak! 👋" atau "Selamat datang di Genesis.id! 😊" atau "Senang bisa membantu Anda! 🌱". Buat warga merasa diterima dan didengarkan.

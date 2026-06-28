@@ -99,7 +99,7 @@ export class ProfilesService {
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('*, profile_badges(earned_at, badges(*))')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -107,7 +107,23 @@ export class ProfilesService {
         'Failed to fetch profiles: ' + error.message,
       );
     }
-    return data || [];
+
+    // Reshape data to match frontend's expected format (flatten badges)
+    const reshaped = (data || []).map((p: any) => {
+      const earnedBadges = (p.profile_badges || []).map((pb: any) => ({
+        earned_at: pb.earned_at,
+        ...pb.badges,
+      }));
+      // Create a shallow copy and remove the nested raw relation field
+      const profileCopy = { ...p };
+      delete profileCopy.profile_badges;
+      return {
+        ...profileCopy,
+        badges: earnedBadges,
+      };
+    });
+
+    return reshaped;
   }
 
   async deleteProfile(userId: string) {
