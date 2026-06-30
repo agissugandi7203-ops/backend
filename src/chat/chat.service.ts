@@ -122,10 +122,10 @@ export class ChatService {
   }
 
   /**
-   * Validasi ukuran berkas base64 agar tidak melebihi 5MB untuk mencegah DoS (Denial of Service)
+   * Validasi ukuran berkas base64 agar tidak melebihi 10MB untuk mencegah DoS (Denial of Service)
    */
   private validatePayloadSizes(dto: ChatRequestDto) {
-    const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
     const checkSize = (base64Str: string | undefined, fieldName: string) => {
       if (!base64Str) return;
@@ -135,7 +135,7 @@ export class ChatService {
       const sizeInBytes = (base64Str.length * 3) / 4;
       if (sizeInBytes > MAX_SIZE_BYTES) {
         throw new HttpException(
-          `Ukuran lampiran berkas ${fieldName} terlalu besar. Maksimal ukuran berkas adalah 5MB.`,
+          `Ukuran lampiran berkas ${fieldName} terlalu besar. Maksimal ukuran berkas adalah 10MB.`,
           HttpStatus.BAD_REQUEST,
         );
       }

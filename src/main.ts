@@ -10,7 +10,10 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: true }),
+    new FastifyAdapter({
+      logger: true,
+      bodyLimit: 15 * 1024 * 1024, // 15MB payload limit
+    }),
   );
 
   // Daftarkan fastify multipart untuk penanganan file upload
