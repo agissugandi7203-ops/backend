@@ -148,7 +148,7 @@ export class ReportsService {
         await this.openRouterService.getChatCompletion(messages);
       return {
         success: true,
-        analysis: responseText,
+        analysis: responseText.content,
       };
     } catch (error) {
       Logger.error(`Error analyzing image: ${error.message}`, 'ReportsService');

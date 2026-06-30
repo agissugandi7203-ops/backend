@@ -1,107 +1,157 @@
-# Genesis.id Backend Service (NestJS + Fastify)
+# Genesis Backend Service (NestJS & Fastify)
 
 [![NestJS Version](https://img.shields.io/npm/v/@nestjs/core.svg)](#)
-[![License](https://img.shields.io/npm/l/@nestjs/core.svg)](#)
 [![Performance](https://img.shields.io/badge/performance-Fastify%20~45.000%20req/s-brightgreen)](#)
 [![Security](https://img.shields.io/badge/security-Supabase%20JWT%20%7C%20RBAC-blue)](#)
+[![Database](https://img.shields.io/badge/database-Supabase%20%28PostgreSQL%29-red.svg)](#)
 
-Mesin backend **Genesis.id** dibangun di atas framework **NestJS** dengan adapter **Fastify** untuk memproses unggahan berkas, sensor gambar PII, geo-deduplikasi spasial PostGIS, integrasi Google Vertex AI (Gemini), serta pencarian vektor RAG secara concurrency tinggi.
-
----
-
-## 1. Fitur Utama Backend
-1.  **Otentikasi & RBAC Guard**: Mengintegrasikan Supabase JWT Auth Guard dan Roles Guard kustom (`admin` vs `citizen`) untuk mengunci API sensitif.
-2.  **Profiles & Onboarding**: Mengelola profil warga, pendaftaran wilayah tetap (Kabupaten/Kota), kalkulasi streak harian, dan lencana.
-3.  **Leaderboard Engine**: Menyediakan data peringkat global (warga teraktif) dan peringkat kota (wilayah terbersih) secara real-time berbasis PostgreSQL views.
-4.  **Badges Management**: Menyediakan katalog lencana dinamis dan kemampuan bagi admin untuk memberikan (*award*) atau mencabut (*revoke*) lencana secara manual.
+Layanan backend **Genesis** dirancang menggunakan arsitektur modular **NestJS** dengan engine adapter **Fastify** untuk memproses throughput request yang tinggi (mencapai ~45.000 request per detik). Backend ini mengelola seluruh logika bisnis utama, mulai dari sensor privasi gambar, geospasial dedup, kalkulasi gamifikasi, hingga chatbot regulasi RAG.
 
 ---
 
-## 2. Struktur Proyek Backend
-```
-backend/src/
-├── auth/               # JWT Guard, Roles Decorator & Guard, get-user decorator
-├── profiles/           # Onboarding, Profile CRUD, & Admin override endpoints
-├── badges/             # Katalog lencana & sistem award/revoke lencana
-├── leaderboard/        # Endpoint peringkat global & kabupaten/kota
-└── supabase/           # Layanan global Supabase Client (Service Role Key)
-```
+## 1. Fitur Utama & Modul Sistem
+
+Setiap fitur dirancang secara modular dengan pemisahan tanggung jawab (*Separation of Concerns*) yang ketat:
+
+### A. Autentikasi & RBAC (Role-Based Access Control)
+- **`AuthGuard`**: Memvalidasi JWT token Supabase dari header otorisasi HTTP (`Authorization: Bearer <token>`).
+- **`RolesGuard`**: Menangani hak akses berbasis peran (misalnya membatasi endpoint dashboard admin hanya untuk role `'admin'` dan membiarkan endpoint pelaporan terbuka untuk `'citizen'`).
+
+### B. Geospasial Spasial Deduplication (PostGIS)
+- Menggunakan ekstensi PostGIS pada PostgreSQL untuk menyimpan data lokasi laporan dalam format geometri spasial `POINT(longitude latitude)`.
+- Mengintegrasikan fungsi RPC `check_duplicate_report` dengan fungsi `ST_DWithin` untuk mendeteksi laporan serupa dalam radius 50 meter secara dinamis, sehingga mencegah laporan spam ganda di lapangan.
+
+### C. Sensor Privasi Gambar (GCP Vision API & Sharp)
+- Memproses gambar laporan secara in-memory untuk mendeteksi data sensitif (PII) seperti wajah dan plat nomor kendaraan melalui **Google Cloud Vision API**.
+- Menggunakan pustaka **Sharp** untuk memburamkan (*blurring*) koordinat wajah dan plat nomor secara Gaussian sebelum gambar disimpan di **Google Cloud Storage (GCS)**.
+
+### D. Chatbot AI RAG (Retrieval-Augmented Generation) & Whisper STT
+- **Vektor Similarity Search**: Menghasilkan embedding teks (768 dimensi) melalui OpenRouter dan mencari regulasi kota yang relevan di tabel Supabase `knowledge_base` menggunakan indeks HNSW.
+- **SSE Streaming**: Mengirimkan jawaban asisten AI secara real-time chunk-by-chunk melalui Server-Sent Events (SSE).
+- **Whisper STT**: Menerima unggahan rekaman suara warga dalam format base64 `.m4a` dan memanggil model Whisper-1 via OpenRouter untuk menghasilkan transkripsi teks secara presisi.
+- **Prompt Injection Guardrails**: Sistem filter input lokal untuk mendeteksi dan meredaksi serangan bypass system prompt (misalnya character-spaced evasion, encoding evasion, dan typoglycemia).
+
+### E. Gamifikasi & Leaderboard Engine
+- Mengelola XP warga, streak harian, dan lencana (*badges*).
+- Menyediakan endpoint peringkat warga global (*Global Leaderboard*) dan kabupaten/kota terbersih (*City Leaderboard*) yang ditarik dari Postgres Views.
 
 ---
 
-## 3. Prasyarat & Setup
+## 2. Struktur Direktori Kode
 
-### A. Prasyarat
-*   Node.js (v18+) dan npm.
-*   Proyek Supabase aktif dengan ekstensi `postgis` dan `vector` terpasang.
-
-### B. Langkah Instalasi
-1.  Jalankan install npm package:
-    ```bash
-    npm install
-    ```
-2.  Salin berkas `.env.example` menjadi `.env` di root folder backend:
-    ```bash
-     cp .env.example .env
-     ```
-3.  Konfigurasikan nilai URL Supabase, Service Role Key (untuk admin bypass RLS), OpenRouter API Key, dan RAG parameters (`RAG_CHUNK_SIZE` & `RAG_CHUNK_OVERLAP`) di dalam berkas `.env`.
-
-### C. Menjalankan Server
-```bash
-# Mode development (watch mode)
-npm run start:dev
-
-# Mode production (build & run)
-npm run build
-npm run start:prod
-```
-
-### D. Verifikasi & Pengujian
-```bash
-# Menjalankan Linter
-npm run lint
-
-# Menjalankan Build
-npm run build
+```text
+src/
+├── auth/               # Sistem otentikasi JWT & Roles Guard
+├── profiles/           # Logika profil warga, onboarding, & gamifikasi
+├── badges/             # Pengelolaan katalog dan pemberian lencana
+├── leaderboard/        # Endpoint data peringkat global & wilayah
+├── reports/            # API pelaporan masalah lingkungan spasial
+├── storage/            # Integrasi GCS & sensor gambar PII
+├── openrouter/         # Integrasi global API OpenRouter (LLM, Whisper, Embeddings)
+├── knowledge-base/     # CRUD dokumen hukum perda bagi admin
+├── chat/               # Chatbot AI RAG & Transkripsi Audio
+└── common/             # Interceptor, guard, & decorator global
 ```
 
 ---
 
-## 4. Pengelolaan Basis Pengetahuan RAG (Knowledge Base)
+## 3. Prasyarat & Pemasangan
 
-Backend ini menyediakan modul penyerapan peraturan daerah dan hukum nasional secara otomatis menggunakan text chunking kustom dan model embeddings OpenRouter (`google/gemini-embedding-2` dengan dimensi vektor 768).
+### Prasyarat
+- Node.js (v18+)
+- Supabase Project dengan ekstensi `postgis` dan `vector`
+- Akun Google Cloud dengan akses Google Cloud Storage dan Cloud Vision API
+- API Key OpenRouter
 
-### A. Endpoint Admin Pengelolaan
-*   `POST /knowledge-base` : Menerima judul, teks isi hukum, dan metadata opsional. Dokumen dipotong-potong menjadi chunk berukuran dinamis, dikonversi menjadi embedding vektor via OpenRouter, dan disimpan di tabel `knowledge_base` Supabase.
-*   `GET /knowledge-base` : Mengambil daftar seluruh regulasi yang tersimpan di basis data (mengecualikan kolom vektor `embedding` untuk menghemat bandwidth data).
-*   `DELETE /knowledge-base/:id` : Menghapus dokumen regulasi atau chunk berdasarkan ID dari basis data.
+### Langkah Pemasangan
 
-### B. Otomatisasi Unggah Massal (Bulk Upload)
-Anda dapat mengunggah kumpulan berkas peraturan lokal `.txt` atau `.md` sekaligus ke database menggunakan skrip pembantu:
+1. Masuk ke direktori backend:
+   ```bash
+   cd backend
+   ```
+
+2. Instal dependensi Node.js:
+   ```bash
+   npm install
+   ```
+
+3. Konfigurasi file `.env`:
+   Salin file `.env.example` ke `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   Lengkapi variabel lingkungan berikut:
+   ```env
+   PORT=3000
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   OPENROUTER_API_KEY=your-openrouter-key
+   GCP_PROJECT_ID=your-gcp-project
+   GCP_CLIENT_EMAIL=your-service-account-email
+   GCP_PRIVATE_KEY=your-service-account-private-key
+   GCS_BUCKET_NAME=your-gcs-bucket-name
+   ```
+
+4. Jalankan aplikasi dalam mode pengembangan:
+   ```bash
+   npm run start:dev
+   ```
+
+5. Lakukan kompilasi build produksi:
+   ```bash
+   npm run build
+   npm run start:prod
+   ```
+
+---
+
+## 4. Skrip Pembantu & Importer Regulasi
+
+Kami menyediakan beberapa skrip otomatisasi di dalam folder `scripts/` untuk mengisi basis pengetahuan AI (RAG):
+
+### A. Pengunggahan Massal Regulasi (Bulk Upload)
+Mengunggah seluruh dokumen regulasi `.txt` atau `.md` dari folder lokal ke basis data Supabase (otomatis melakukan chunking dan pembuatan embedding vektor):
 ```bash
 npx ts-node scripts/bulk-upload-knowledge.ts ../docs/regulations "<supabase_service_role_key>" "http://localhost:3000"
 ```
 
-### C. JDIH Scraper & Importer (`scrape-and-import-jdih.ts`)
-Kami menyediakan skrip khusus untuk mensimulasikan pencarian hukum ke portal **api.jdihn.go.id** (Jaringan Dokumentasi dan Informasi Hukum Nasional), mengambil berkas hukum nasional terbaru (PP No. 22/2021, Permen LHK No. 6/2021, UU No. 18/2013), lalu langsung memotong (chunk), mem-vektorisasi (embed), dan menyimpannya di database Supabase:
+### B. Simulasi Penarikan Data JDIHN
+Mengambil data undang-undang dan peraturan menteri langsung secara terprogram dari portal API JDIH Nasional, memilahnya, dan memasukkannya ke database:
 ```bash
 npx ts-node scripts/scrape-and-import-jdih.ts "<supabase_service_role_key>" "http://localhost:3000"
 ```
 
 ---
 
-## 5. Dinamis Model AI Selector & SSE Streaming
-*   **Routing Model Dinamis**: API `/chat` dan `/chat/stream` menerima parameter `model` dari aplikasi mobile. Sistem akan meneruskannya secara otomatis ke OpenRouter. Model yang didukung secara default:
-    *   `google/gemini-2.5-flash` (⚡ Geni-Flash)
-    *   `google/gemini-2.5-pro` (💎 Geni-Pro)
-    *   `deepseek/deepseek-chat` (🤖 DeepSeek-Chat)
-*   **SSE Streaming**: Chat response dikirim secara chunk demi chunk menggunakan adapter Fastify SSE dengan tipe content `text/event-stream` untuk visualisasi respons mengetik dinamis di sisi Flutter client.
+## 5. Ringkasan API Kontrak
+
+| Method | Path | Auth | Deskripsi |
+|---|---|---|---|
+| `GET` | `/auth/verify` | JWT | Memverifikasi validitas token JWT dari klien |
+| `GET` | `/profiles/me` | JWT | Mengambil profil detail warga dan lencana |
+| `POST` | `/profiles/onboard` | JWT | Mengisi data profil & kota tinggal pada login pertama |
+| `POST` | `/reports` | JWT | Mengunggah laporan baru (Multipart: file, lat, lng, desc) |
+| `GET` | `/reports` | JWT | Mengambil seluruh riwayat laporan |
+| `POST` | `/chat/stream` | JWT | Konsultasi AI RAG dengan respon streaming SSE |
+| `POST` | `/chat/transcribe` | JWT | Transkripsi pesan suara menjadi teks (Whisper) |
+| `GET` | `/leaderboard/global` | JWT | Mengambil daftar peringkat warga aktif global |
+| `GET` | `/leaderboard/city` | JWT | Mengambil peringkat kota terbersih |
+| `POST` | `/knowledge-base` | Admin | Menambahkan regulasi baru ke basis pengetahuan RAG |
+| `DELETE`| `/profiles/:id` | Admin | Menghapus akun user secara cascade di Supabase |
 
 ---
 
-## 6. Dokumentasi API Lengkap
-Untuk detail katalog API, skema request/response, dan alur otorisasi, silakan baca berkas dokumentasi resmi:
-👉 **[BACKEND_ARCHITECTURE.md (Arsitektur Backend)](file:///d:/PROJECT%20ARIEF/LKS%20Dikdasmen/docs/BACKEND_ARCHITECTURE.md)**
-👉 **[KNOWLEDGE_BASE_GUIDE.md (Panduan RAG)](file:///d:/PROJECT%20ARIEF/LKS%20Dikdasmen/docs/KNOWLEDGE_BASE_GUIDE.md)**
+## 6. Pengujian & Kualitas Kode
 
+Backend dilengkapi dengan pengujian unit (*unit testing*) dan integrasi menggunakan Jest.
+```bash
+# Menjalankan Linter
+npm run lint
 
+# Menjalankan Unit Test
+npm run test
+
+# Menjalankan Integration Test
+npm run test:e2e
+```
