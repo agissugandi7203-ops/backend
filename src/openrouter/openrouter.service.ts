@@ -142,8 +142,15 @@ export class OpenRouterService {
     webSearch?: boolean,
   ): Promise<Response> {
     try {
-      // Gunakan model pilihan client (dengan pembersihan prefix) atau default dari .env
-      const selectedModel = model ? model.replace(/^(google\/|openai\/)/i, '') : this.defaultModel;
+      // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
+      // Jika model dari client adalah pro/preview, gunakan model tersebut secara dinamis.
+      let selectedModel = this.defaultModel;
+      if (model) {
+        const cleanModel = model.replace(/^(google\/|openai\/)/i, '');
+        if (!cleanModel.toLowerCase().includes('flash')) {
+          selectedModel = cleanModel;
+        }
+      }
       const { contents, systemInstruction } = this.mapOpenAiToGemini(messages);
 
       const config: any = {};
@@ -268,8 +275,15 @@ export class OpenRouterService {
     webSearch?: boolean,
   ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     try {
-      // Gunakan model pilihan client (dengan pembersihan prefix) atau default dari .env
-      const selectedModel = model ? model.replace(/^(google\/|openai\/)/i, '') : this.defaultModel;
+      // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
+      // Jika model dari client adalah pro/preview, gunakan model tersebut secara dinamis.
+      let selectedModel = this.defaultModel;
+      if (model) {
+        const cleanModel = model.replace(/^(google\/|openai\/)/i, '');
+        if (!cleanModel.toLowerCase().includes('flash')) {
+          selectedModel = cleanModel;
+        }
+      }
       const { contents, systemInstruction } = this.mapOpenAiToGemini(messages);
 
       const config: any = {};
