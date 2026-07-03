@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
 import { SupabaseService } from '../supabase/supabase.service';
+import * as fs from 'fs';
 
 @Injectable()
 export class GcsService implements OnModuleInit {
@@ -29,7 +30,12 @@ export class GcsService implements OnModuleInit {
     try {
       const storageOptions: any = {};
       if (projectId) storageOptions.projectId = projectId;
-      if (keyFilePath) storageOptions.keyFilename = keyFilePath;
+      if (keyFilePath && fs.existsSync(keyFilePath)) {
+        storageOptions.keyFilename = keyFilePath;
+        this.logger.log(`Using GCS credentials keyfile: ${keyFilePath}`);
+      } else {
+        this.logger.log('GCS credentials keyfile not found. Using ADC/GCP Metadata IAM.');
+      }
 
       this.storage = new Storage(storageOptions);
       this.logger.log('Google Cloud Storage client successfully initialized');

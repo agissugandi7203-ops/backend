@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as vision from '@google-cloud/vision';
 import sharp from 'sharp';
+import * as fs from 'fs';
 
 @Injectable()
 export class PiiRedactionService implements OnModuleInit {
@@ -24,7 +25,12 @@ export class PiiRedactionService implements OnModuleInit {
     try {
       const visionOptions: any = {};
       if (projectId) visionOptions.projectId = projectId;
-      if (keyFilePath) visionOptions.keyFilename = keyFilePath;
+      if (keyFilePath && fs.existsSync(keyFilePath)) {
+        visionOptions.keyFilename = keyFilePath;
+        this.logger.log(`Using Vision credentials keyfile: ${keyFilePath}`);
+      } else {
+        this.logger.log('Vision credentials keyfile not found. Using ADC/GCP Metadata IAM.');
+      }
 
       this.visionClient = new vision.ImageAnnotatorClient(visionOptions);
       this.logger.log(
