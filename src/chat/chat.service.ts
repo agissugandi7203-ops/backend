@@ -319,7 +319,10 @@ export class ChatService {
     const currentIndonesianTime = now.toLocaleTimeString('id-ID', timeOptions);
 
     const webSearchGuideline = dto.webSearch
-      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Sistem telah secara otomatis melakukan pencarian web dan menyisipkan hasil pencarian terkini ke dalam konteks percakapan ini. Gunakan HANYA data dari hasil pencarian web tersebut untuk menjawab pertanyaan yang membutuhkan informasi terkini (berita, peristiwa, data ${now.getFullYear()}, dll). JANGAN mengarang fakta. Jika hasil pencarian tidak memuat jawaban, katakan secara jujur bahwa data belum tersedia di hasil pencarian. Selalu sertakan sumber kutipan sebagai tautan markdown.`
+      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Hasil pencarian web otomatis disisipkan ke sistem Anda. Gunakan data tersebut untuk menjawab pertanyaan terkini (berita, tahun ${now.getFullYear()}, dll).
+      - **PENTING (KEWAJIBAN SITASI/RUJUKAN)**: Kakak WAJIB mencantumkan tautan rujukan langsung di dalam teks jawaban menggunakan format markdown tautan: [Nama Website/Domain](URL). 
+        Contoh: "Bupati melantik A. Koswara [jabarprov.go.id](https://www.jabarprov.go.id/berita/14731) pada hari kemarin."
+        AI dilarang menyembunyikan link atau menulis URL telanjang tanpa nama domain. Tautan markdown ini sangat penting agar aplikasi HP/dashboard bisa mendeteksi dan menampilkan tombol sumber referensinya.`
       : '';
 
     const systemPrompt = `
