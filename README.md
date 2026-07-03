@@ -4,8 +4,20 @@
 [![Performance](https://img.shields.io/badge/performance-Fastify%20~45.000%20req/s-brightgreen)](#)
 [![Security](https://img.shields.io/badge/security-Supabase%20JWT%20%7C%20RBAC-blue)](#)
 [![Database](https://img.shields.io/badge/database-Supabase%20%28PostgreSQL%29-red.svg)](#)
+[![API Live](https://img.shields.io/badge/🟢_API-LIVE-02569B?style=for-the-badge)](https://genesisHub.my.id/api)
+[![Swagger Docs](https://img.shields.io/badge/📖_Swagger-Docs-E0234E?style=for-the-badge&logo=swagger&logoColor=white)](https://genesisHub.my.id/api)
+
+<div align="center">
+  <a href="https://genesisHub.my.id/api">
+    <img src="https://img.shields.io/badge/⚙️_Buka_API_Swagger_Docs-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" alt="API Swagger" />
+  </a>
+</div>
+
+---
 
 Layanan backend **Genesis** dirancang menggunakan arsitektur modular **NestJS** dengan engine adapter **Fastify** untuk memproses throughput request yang tinggi (mencapai ~45.000 request per detik). Backend ini mengelola seluruh logika bisnis utama, mulai dari sensor privasi gambar, geospasial dedup, kalkulasi gamifikasi, hingga chatbot regulasi RAG.
+
+**Base URL Produksi**: `https://genesisHub.my.id`
 
 ---
 
