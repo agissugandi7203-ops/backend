@@ -252,11 +252,15 @@ export class OpenRouterService {
             if (citationsList.length > 0) {
               let citationText = '\n\n**Sumber Referensi:**';
               for (const cit of citationsList) {
+                let uri = cit.url;
+                if (uri.includes('grounding-redirect') || uri.includes('grounding-api-redirect')) {
+                  uri = await self.resolveRedirectUrl(uri);
+                }
                 let domain = 'web';
                 try {
-                  domain = new URL(cit.url).hostname.replace('www.', '');
+                  domain = new URL(uri).hostname.replace('www.', '');
                 } catch (_) {}
-                citationText += `\n* [${domain}](${cit.url})`;
+                citationText += `\n* [${domain}](${uri})`;
               }
 
               // Buat payload SSE berisi teks sitasi akhir
@@ -384,7 +388,10 @@ export class OpenRouterService {
         for (const sc of searchChunks) {
           const rawUri = sc.web?.uri;
           if (rawUri) {
-            const uri = this.extractDirectUrl(rawUri);
+            let uri = rawUri;
+            if (rawUri.includes('grounding-redirect') || rawUri.includes('grounding-api-redirect')) {
+              uri = await this.resolveRedirectUrl(rawUri);
+            }
             if (!seenUris.has(uri)) {
               seenUris.add(uri);
               let domain = 'web';
@@ -497,12 +504,12 @@ export class OpenRouterService {
   }
 
   /**
-   * Mengekstrak URL tujuan asli dari link pengalihan (grounding redirect) Vertex AI
+   * Mengekstrak URL tujuan asli dari link pengalihan (grounding redirect) Vertex AI secara sinkron (untuk parameter target)
    */
   private extractDirectUrl(url: string): string {
     if (!url) return '';
     try {
-      if (url.includes('grounding-redirect')) {
+      if (url.includes('target=')) {
         const parsedUrl = new URL(url);
         const target = parsedUrl.searchParams.get('target');
         if (target) {
@@ -510,6 +517,36 @@ export class OpenRouterService {
         }
       }
     } catch (_) {}
+    return url;
+  }
+
+  /**
+   * Melakukan resolusi tautan pengalihan (grounding redirect) secara dinamis
+   * Mendukung dekode parameter instan (?target=...) maupun request HEAD untuk token acak (/grounding-api-redirect/...)
+   */
+  private async resolveRedirectUrl(url: string): Promise<string> {
+    if (!url) return '';
+    
+    // 1. Coba dekode parameter target secara instan
+    const decoded = this.extractDirectUrl(url);
+    if (decoded !== url) {
+      return decoded;
+    }
+    
+    // 2. Jika tautan berbentuk token terenkripsi, lakukan request HEAD cepat untuk membaca header Location
+    try {
+      if (url.includes('grounding-api-redirect') || url.includes('grounding-redirect')) {
+        const response = await fetch(url, {
+          method: 'HEAD',
+          redirect: 'manual',
+        });
+        const location = response.headers.get('location');
+        if (location) {
+          return location;
+        }
+      }
+    } catch (_) {}
+    
     return url;
   }
 }
