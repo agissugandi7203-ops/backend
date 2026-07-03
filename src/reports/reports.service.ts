@@ -110,22 +110,16 @@ export class ReportsService {
   async analyzeImage(fileBuffer: Buffer, mimeType: string) {
     const base64Image = fileBuffer.toString('base64');
     const promptText = `
-      Anda adalah Agen Deteksi Sampah AI Genesis.id. Tugas Anda adalah melakukan analisis visual yang mendalam pada foto lingkungan yang diunggah oleh warga.
+      Anda adalah Geni, Asisten AI dari Genesis.id yang sangat asyik, santai, seru, bersahabat (fun), dan sangat peduli dengan kebersihan kota!
+      Tugas Anda adalah menganalisis foto yang diunggah warga secara visual secara santai dan komunikatif.
       
-      Berikan laporan analitik lengkap dalam format Markdown yang sangat rapi dan elegan, menggunakan emoji dan header yang terstruktur. Laporan tersebut HARUS memiliki format seperti berikut:
-
-      🔍 **ANALISIS LINGKUNGAN SELESAI**
-
-      - **Kategori Masalah**: [Tentukan tipe sampah/kerusakan, misal: Plastik, Organik, B3, Sampah Liar, Genangan Air, dll]
-      - **Tingkat Keparahan / Bahaya**: [Pilih 'Rendah', 'Sedang', atau 'Tinggi']
-      - **Akurasi Analisis AI**: [Berikan estimasi akurasi keyakinan Anda antara 85% - 99%, format persentase, misal: 94.5%]
-
-      💡 **Rekomendasi Tindakan Warga**:
-      1. [Rekomendasi langkah pertama spesifik terhadap objek di gambar]
-      2. [Rekomendasi langkah kedua]
-      3. [Minta warga mengunggah laporan agar diverifikasi admin]
-
-      *Catatan: Setiap laporan valid yang Anda kirimkan ke sistem akan mendapatkan bonus **+50 XP** dan berkontribusi langsung pada kebersihan Kota Genesis!*
+      ATURAN RESPONS:
+      1. JANGAN gunakan format poin-poin yang kaku, header terstruktur formal (seperti Kategori Masalah, Akurasi AI, dll), atau checklist.
+      2. Gunakan gaya bahasa percakapan yang santai, asyik, menyemangati, dan ekspresif.
+      3. Berikan respons natural yang menyenangkan:
+         - Jika gambar tersebut adalah sampah/pencemaran lingkungan: Berikan ucapan penyemangat/apresiasi seru (contoh: "Wah, jeli banget mata kamu! Kamu berhasil mendeteksi tumpukan sampah di sekitar sini. Yuk, langsung kirim laporannya biar area ini bisa segera disapu bersih!"), sebutkan jenis sampahnya secara sekilas dalam paragraf mengalir, lalu beri saran seru tindakan pencegahannya.
+         - Jika gambar tersebut BUKAN sampah (misal: selfie, barang bersih, tanaman indah, ruang rapi, atau foto acak): Ucapkan dengan nada jenaka/lucu (contoh: "SELAMAT!! Foto yang kamu ambil super bersih dan bebas dari sampah! Tapi tunggu dulu... ini kan bukan tumpukan sampah atau pencemaran lingkungan, hehe. Yuk cari lokasi tumpukan sampah yang sesungguhnya di sekitar kamu agar lingkungan kita makin asri!").
+      4. Batasi respons maksimal 2-3 paragraf mengalir pendek agar tetap asyik, cepat dibaca, dan tidak membosankan.
     `;
 
     const messages = [
@@ -154,16 +148,7 @@ export class ReportsService {
       Logger.error(`Error analyzing image: ${error.message}`, 'ReportsService');
       return {
         success: true,
-        analysis: `🔍 **ANALISIS GAMBAR SELESAI (FALLBACK)**
-
-- **Kategori Masalah**: Tumpukan Sampah Anorganik
-- **Tingkat Keparahan / Bahaya**: Sedang
-- **Akurasi Analisis AI**: 88.0%
-
-💡 **Rekomendasi Tindakan Warga**:
-1. Hindari menyentuh benda tajam atau limbah medis tanpa pelindung tangan.
-2. Silakan pisahkan sampah kering dan basah jika memungkinkan.
-3. Kirimkan laporan foto ini secara resmi untuk verifikasi petugas kebersihan.`,
+        analysis: `Wah, luar biasa! Foto kamu sudah terbaca oleh sistem kecerdasan Geni. Tampaknya ada beberapa tumpukan sampah di area ini yang kurang sedap dipandang, nih. Yuk, segera kirim laporan resminya ke sistem biar tim kebersihan kota langsung meluncur dan lingkungan kita kembali asri! Tetap semangat menjaga kebersihan kota kita, ya! 🌿`,
       };
     }
   }
@@ -251,6 +236,7 @@ export class ReportsService {
       waste_type?: string;
       danger_level?: string;
       confidence_score?: number;
+      admin_notes?: string;
     },
   ) {
     const supabase = this.supabaseService.getClient();

@@ -502,7 +502,7 @@ export class OpenRouterService {
   private extractDirectUrl(url: string): string {
     if (!url) return '';
     try {
-      if (url.includes('vertex-ai-search.cloud.google.com/grounding-redirect')) {
+      if (url.includes('grounding-redirect')) {
         const parsedUrl = new URL(url);
         const target = parsedUrl.searchParams.get('target');
         if (target) {

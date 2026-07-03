@@ -27,4 +27,8 @@ export class UpdateReportDto {
   @Min(0.0)
   @Max(1.0)
   confidence_score?: number;
+
+  @IsOptional()
+  @IsString()
+  admin_notes?: string;
 }
