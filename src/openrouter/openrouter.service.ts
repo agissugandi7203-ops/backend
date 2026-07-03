@@ -35,15 +35,13 @@ export class OpenRouterService {
       this.logger.error(`Failed to initialize Google GenAI Client: ${err.message}`);
     }
 
-    // Default to Gemini 2.5 Flash Lite
-    this.defaultModel =
-      this.configService.get<string>('OPENROUTER_MODEL') ||
-      'gemini-2.5-flash-lite';
+    // Default to Gemini 2.5 Flash and automatically strip "google/" or "openai/" prefix if present
+    const rawModel = this.configService.get<string>('OPENROUTER_MODEL') || 'gemini-2.5-flash';
+    this.defaultModel = rawModel.replace(/^(google\/|openai\/)/i, '');
     
-    // Default to text-embedding-004 (768 dimensions)
-    this.embeddingModel =
-      this.configService.get<string>('OPENROUTER_EMBEDDING_MODEL') ||
-      'text-embedding-004';
+    // Default to text-embedding-004 and strip prefix
+    const rawEmbedModel = this.configService.get<string>('OPENROUTER_EMBEDDING_MODEL') || 'text-embedding-004';
+    this.embeddingModel = rawEmbedModel.replace(/^(google\/|openai\/)/i, '');
   }
 
   /**
