@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
+import * as fs from 'fs';
 
 @Injectable()
 export class OpenRouterService {
@@ -13,9 +14,12 @@ export class OpenRouterService {
     const projectId = this.configService.get<string>('GCS_PROJECT_ID') || 'arief-fajar';
     const keyFilePath = this.configService.get<string>('GCS_KEY_FILE_PATH');
 
-    // Set credentials for Google GenAI SDK if key file path is provided in local environment
-    if (keyFilePath) {
+    // Set credentials for Google GenAI SDK if key file path is provided and exists on disk
+    if (keyFilePath && fs.existsSync(keyFilePath)) {
       process.env.GOOGLE_APPLICATION_CREDENTIALS = keyFilePath;
+      this.logger.log(`Using credentials keyfile: ${keyFilePath}`);
+    } else {
+      this.logger.log('Key file not found on disk. Falling back to Application Default Credentials (ADC) or GCP Metadata IAM.');
     }
 
     const region = this.configService.get<string>('VERTEX_AI_REGION') || 'asia-southeast1';
