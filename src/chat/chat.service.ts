@@ -319,11 +319,7 @@ export class ChatService {
     const currentIndonesianTime = now.toLocaleTimeString('id-ID', timeOptions);
 
     const webSearchGuideline = dto.webSearch
-      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Hasil pencarian web otomatis disisipkan ke sistem Anda. Gunakan data tersebut untuk menjawab pertanyaan terkini (berita, tahun ${now.getFullYear()}, dll).
-      - **PENTING (KEWAJIBAN SITASI TERSEMBUNYI)**: Kakak dilarang menuliskan tautan rujukan secara langsung di tengah kalimat jawaban agar gelembung chat tetap bersih, rapi, dan nyaman dibaca.
-      - **ATURAN KHUSUS**: Kakak WAJIB meletakkan semua tautan rujukan di bagian paling akhir jawaban Anda, lalu membungkusnya di dalam tag komentar HTML tersembunyi.
-        Format: "Ini adalah kalimat penutup jawaban Kakak.\\n\\n<!-- [Nama Website](URL) [Nama Website 2](URL 2) -->"
-        Pastikan format markdown tautan [Nama Website/Domain](URL) di dalam komentar HTML tersebut ditulis secara benar agar sistem internal HP warga dapat menangkap dan memunculkan tombol referensi terkait secara otomatis.`
+      ? `\n      - STATUS PENCARIAN WEB: AKTIF. Hasil pencarian web otomatis disisipkan ke sistem Anda. Gunakan data tersebut untuk menjawab pertanyaan terkini (berita, tahun ${now.getFullYear()}, dll) secara akurat. Jawablah secara natural, padat, dan informatif.`
       : '';
 
     const systemPrompt = `

@@ -178,6 +178,9 @@ export class OpenRouterService {
             // Berikan penanda stream di awal
             controller.enqueue(encoder.encode(': GOOGLE VERTEX AI STREAMING\n\n'));
 
+            const seenUris = new Set<string>();
+            const citationsList: Array<{ title: string; url: string }> = [];
+
             for await (const chunk of responseStream) {
               const text = chunk.text;
               
@@ -186,6 +189,18 @@ export class OpenRouterService {
               const searchChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
               const searchSupports = chunk.candidates?.[0]?.groundingMetadata?.groundingSupports;
               
+              if (searchChunks) {
+                // Catat link unik ke list rujukan kita
+                for (const sc of searchChunks) {
+                  const uri = sc.web?.uri;
+                  const title = sc.web?.title || 'Sumber Terpercaya';
+                  if (uri && !seenUris.has(uri)) {
+                    seenUris.add(uri);
+                    citationsList.push({ title, url: uri });
+                  }
+                }
+              }
+
               if (searchChunks && searchSupports) {
                 annotations = searchSupports.map((support: any) => {
                   const sourceIndices = support.groundingChunkIndices || [];
@@ -226,6 +241,38 @@ export class OpenRouterService {
                 };
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
               }
+            }
+
+            // Jika ada sitasi terkumpul, kirimkan daftar tautan di akhir respon secara otomatis
+            if (citationsList.length > 0) {
+              let citationText = '\n\n**Sumber Referensi:**';
+              for (const cit of citationsList) {
+                let domain = 'web';
+                try {
+                  domain = new URL(cit.url).hostname.replace('www.', '');
+                } catch (_) {}
+                citationText += `\n* [${domain}](${cit.url})`;
+              }
+
+              // Buat payload SSE berisi teks sitasi akhir
+              const citationPayload = {
+                id: streamId,
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: selectedModel,
+                provider: 'GoogleCloud',
+                choices: [
+                  {
+                    index: 0,
+                    delta: {
+                      content: citationText,
+                      role: 'assistant',
+                    },
+                    finish_reason: null,
+                  },
+                ],
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(citationPayload)}\n\n`));
             }
 
             // Kirim sinyal finish
@@ -324,8 +371,26 @@ export class OpenRouterService {
         });
       }
 
+      let finalContent = response.text || '';
+      if (searchChunks && searchChunks.length > 0) {
+        let citationText = '\n\n**Sumber Referensi:**';
+        const seenUris = new Set<string>();
+        for (const sc of searchChunks) {
+          const uri = sc.web?.uri;
+          if (uri && !seenUris.has(uri)) {
+            seenUris.add(uri);
+            let domain = 'web';
+            try {
+              domain = new URL(uri).hostname.replace('www.', '');
+            } catch (_) {}
+            citationText += `\n* [${domain}](${uri})`;
+          }
+        }
+        finalContent += citationText;
+      }
+
       return {
-        content: response.text || '',
+        content: finalContent,
         annotations: annotations.length > 0 ? annotations : undefined,
       };
     } catch (error) {
