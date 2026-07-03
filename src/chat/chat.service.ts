@@ -320,9 +320,10 @@ export class ChatService {
 
     const webSearchGuideline = dto.webSearch
       ? `\n      - STATUS PENCARIAN WEB: AKTIF. Hasil pencarian web otomatis disisipkan ke sistem Anda. Gunakan data tersebut untuk menjawab pertanyaan terkini (berita, tahun ${now.getFullYear()}, dll).
-      - **PENTING (KEWAJIBAN SITASI/RUJUKAN)**: Kakak WAJIB mencantumkan tautan rujukan langsung di dalam teks jawaban menggunakan format markdown tautan: [Nama Website/Domain](URL). 
-        Contoh: "Bupati melantik A. Koswara [jabarprov.go.id](https://www.jabarprov.go.id/berita/14731) pada hari kemarin."
-        AI dilarang menyembunyikan link atau menulis URL telanjang tanpa nama domain. Tautan markdown ini sangat penting agar aplikasi HP/dashboard bisa mendeteksi dan menampilkan tombol sumber referensinya.`
+      - **PENTING (KEWAJIBAN SITASI TERSEMBUNYI)**: Kakak dilarang menuliskan tautan rujukan secara langsung di tengah kalimat jawaban agar gelembung chat tetap bersih, rapi, dan nyaman dibaca.
+      - **ATURAN KHUSUS**: Kakak WAJIB meletakkan semua tautan rujukan di bagian paling akhir jawaban Anda, lalu membungkusnya di dalam tag komentar HTML tersembunyi.
+        Format: "Ini adalah kalimat penutup jawaban Kakak.\\n\\n<!-- [Nama Website](URL) [Nama Website 2](URL 2) -->"
+        Pastikan format markdown tautan [Nama Website/Domain](URL) di dalam komentar HTML tersebut ditulis secara benar agar sistem internal HP warga dapat menangkap dan memunculkan tombol referensi terkait secara otomatis.`
       : '';
 
     const systemPrompt = `
