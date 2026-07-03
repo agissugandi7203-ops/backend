@@ -192,11 +192,14 @@ export class OpenRouterService {
               if (searchChunks) {
                 // Catat link unik ke list rujukan kita
                 for (const sc of searchChunks) {
-                  const uri = sc.web?.uri;
-                  const title = sc.web?.title || 'Sumber Terpercaya';
-                  if (uri && !seenUris.has(uri)) {
-                    seenUris.add(uri);
-                    citationsList.push({ title, url: uri });
+                  const rawUri = sc.web?.uri;
+                  if (rawUri) {
+                    const uri = this.extractDirectUrl(rawUri);
+                    const title = sc.web?.title || 'Sumber Terpercaya';
+                    if (!seenUris.has(uri)) {
+                      seenUris.add(uri);
+                      citationsList.push({ title, url: uri });
+                    }
                   }
                 }
               }
@@ -206,11 +209,12 @@ export class OpenRouterService {
                   const sourceIndices = support.groundingChunkIndices || [];
                   const firstSourceIndex = sourceIndices[0] ?? 0;
                   const searchChunk = searchChunks[firstSourceIndex];
+                  const directUrl = this.extractDirectUrl(searchChunk?.web?.uri || '');
                   
                   return {
                     type: 'web_search_citation',
                     url_citation: {
-                      url: searchChunk?.web?.uri || '',
+                      url: directUrl,
                       title: searchChunk?.web?.title || 'Sumber Terpercaya',
                       content: searchChunk?.web?.title || '',
                       start_index: support.segment?.startIndex ?? 0,
@@ -357,11 +361,12 @@ export class OpenRouterService {
           const sourceIndices = support.groundingChunkIndices || [];
           const firstSourceIndex = sourceIndices[0] ?? 0;
           const chunk = searchChunks[firstSourceIndex];
+          const directUrl = this.extractDirectUrl(chunk?.web?.uri || '');
           
           return {
             type: 'web_search_citation',
             url_citation: {
-              url: chunk?.web?.uri || '',
+              url: directUrl,
               title: chunk?.web?.title || 'Sumber Terpercaya',
               content: chunk?.web?.title || '',
               start_index: support.segment?.startIndex ?? 0,
@@ -376,14 +381,17 @@ export class OpenRouterService {
         let citationText = '\n\n**Sumber Referensi:**';
         const seenUris = new Set<string>();
         for (const sc of searchChunks) {
-          const uri = sc.web?.uri;
-          if (uri && !seenUris.has(uri)) {
-            seenUris.add(uri);
-            let domain = 'web';
-            try {
-              domain = new URL(uri).hostname.replace('www.', '');
-            } catch (_) {}
-            citationText += `\n* [${domain}](${uri})`;
+          const rawUri = sc.web?.uri;
+          if (rawUri) {
+            const uri = this.extractDirectUrl(rawUri);
+            if (!seenUris.has(uri)) {
+              seenUris.add(uri);
+              let domain = 'web';
+              try {
+                domain = new URL(uri).hostname.replace('www.', '');
+              } catch (_) {}
+              citationText += `\n* [${domain}](${uri})`;
+            }
           }
         }
         finalContent += citationText;
@@ -485,5 +493,22 @@ export class OpenRouterService {
       this.logger.error(`Error transcribing audio via Vertex AI: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Mengekstrak URL tujuan asli dari link pengalihan (grounding redirect) Vertex AI
+   */
+  private extractDirectUrl(url: string): string {
+    if (!url) return '';
+    try {
+      if (url.includes('vertex-ai-search.cloud.google.com/grounding-redirect')) {
+        const parsedUrl = new URL(url);
+        const target = parsedUrl.searchParams.get('target');
+        if (target) {
+          return decodeURIComponent(target);
+        }
+      }
+    } catch (_) {}
+    return url;
   }
 }
