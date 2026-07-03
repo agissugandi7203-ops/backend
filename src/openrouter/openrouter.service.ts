@@ -168,6 +168,7 @@ export class OpenRouterService {
         config,
       });
 
+      const self = this;
       // Buat ReadableStream kustom untuk membungkus data ke dalam format SSE OpenAI
       const readable = new ReadableStream({
         async start(controller) {
@@ -194,7 +195,7 @@ export class OpenRouterService {
                 for (const sc of searchChunks) {
                   const rawUri = sc.web?.uri;
                   if (rawUri) {
-                    const uri = this.extractDirectUrl(rawUri);
+                    const uri = self.extractDirectUrl(rawUri);
                     const title = sc.web?.title || 'Sumber Terpercaya';
                     if (!seenUris.has(uri)) {
                       seenUris.add(uri);
@@ -209,7 +210,7 @@ export class OpenRouterService {
                   const sourceIndices = support.groundingChunkIndices || [];
                   const firstSourceIndex = sourceIndices[0] ?? 0;
                   const searchChunk = searchChunks[firstSourceIndex];
-                  const directUrl = this.extractDirectUrl(searchChunk?.web?.uri || '');
+                  const directUrl = self.extractDirectUrl(searchChunk?.web?.uri || '');
                   
                   return {
                     type: 'web_search_citation',
