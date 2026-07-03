@@ -80,7 +80,8 @@ export class OpenRouterService {
     }
 
     try {
-      const selectedModel = model || this.defaultModel;
+      // Paksa menggunakan model default dari file .env agar perubahan env langsung berdampak
+      const selectedModel = this.defaultModel;
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -136,7 +137,8 @@ export class OpenRouterService {
     }
 
     try {
-      const selectedModel = model || this.defaultModel;
+      // Paksa menggunakan model default dari file .env agar perubahan env langsung berdampak
+      const selectedModel = this.defaultModel;
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
