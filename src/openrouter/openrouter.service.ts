@@ -142,8 +142,8 @@ export class OpenRouterService {
     webSearch?: boolean,
   ): Promise<Response> {
     try {
-      // Prioritaskan model default dari .env (biasanya gemini-2.5-flash-lite)
-      const selectedModel = this.defaultModel;
+      // Gunakan model pilihan client (dengan pembersihan prefix) atau default dari .env
+      const selectedModel = model ? model.replace(/^(google\/|openai\/)/i, '') : this.defaultModel;
       const { contents, systemInstruction } = this.mapOpenAiToGemini(messages);
 
       const config: any = {};
@@ -268,7 +268,8 @@ export class OpenRouterService {
     webSearch?: boolean,
   ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     try {
-      const selectedModel = this.defaultModel;
+      // Gunakan model pilihan client (dengan pembersihan prefix) atau default dari .env
+      const selectedModel = model ? model.replace(/^(google\/|openai\/)/i, '') : this.defaultModel;
       const { contents, systemInstruction } = this.mapOpenAiToGemini(messages);
 
       const config: any = {};
