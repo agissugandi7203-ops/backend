@@ -173,7 +173,32 @@ export class OpenRouterService {
 
             for await (const chunk of responseStream) {
               const text = chunk.text;
-              if (text) {
+              
+              // Ekstrak metadata pencarian web (grounding) jika dikembalikan di chunk ini
+              let annotations: any[] | undefined = undefined;
+              const searchChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+              const searchSupports = chunk.candidates?.[0]?.groundingMetadata?.groundingSupports;
+              
+              if (searchChunks && searchSupports) {
+                annotations = searchSupports.map((support: any) => {
+                  const sourceIndices = support.groundingChunkIndices || [];
+                  const firstSourceIndex = sourceIndices[0] ?? 0;
+                  const searchChunk = searchChunks[firstSourceIndex];
+                  
+                  return {
+                    type: 'web_search_citation',
+                    url_citation: {
+                      url: searchChunk?.web?.uri || '',
+                      title: searchChunk?.web?.title || 'Sumber Terpercaya',
+                      content: searchChunk?.web?.title || '',
+                      start_index: support.segment?.startIndex ?? 0,
+                      end_index: support.segment?.endIndex ?? 0,
+                    }
+                  };
+                });
+              }
+
+              if (text || annotations) {
                 const ssePayload = {
                   id: streamId,
                   object: 'chat.completion.chunk',
@@ -184,8 +209,9 @@ export class OpenRouterService {
                     {
                       index: 0,
                       delta: {
-                        content: text,
+                        content: text || '',
                         role: 'assistant',
+                        ...(annotations ? { annotations } : {}),
                       },
                       finish_reason: null,
                     },
