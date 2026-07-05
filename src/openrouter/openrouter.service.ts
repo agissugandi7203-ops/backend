@@ -163,10 +163,29 @@ export class OpenRouterService {
       throw error;
     }
   }
-
   /**
-   * Mengirim request chat completion dengan streaming (Dibungkus agar kompatibel dengan SSE OpenAI/OpenRouter)
+   * Memetakan nama model dari client ke model ID yang valid di Vertex AI
    */
+  private mapToVertexModel(model?: string): string {
+    if (!model) {
+      return this.defaultModel;
+    }
+
+    const cleanModel = model.replace(/^(google\/|openai\/)/i, '').toLowerCase();
+
+    // Jika model mengandung kata 'pro', arahkan ke gemini-1.5-pro yang stabil di Vertex AI Singapura
+    if (cleanModel.includes('pro')) {
+      return 'gemini-1.5-pro';
+    }
+
+    // Jika model mengandung kata 'flash', gunakan defaultModel dari .env
+    if (cleanModel.includes('flash')) {
+      return this.defaultModel;
+    }
+
+    return cleanModel;
+  }
+
   /**
    * Mengirim request chat completion dengan streaming (Dibungkus agar kompatibel dengan SSE OpenAI/OpenRouter)
    */
@@ -178,13 +197,7 @@ export class OpenRouterService {
     systemInstructionOverride?: string,
   ): Promise<Response> {
     try {
-      let selectedModel = this.defaultModel;
-      if (model) {
-        const cleanModel = model.replace(/^(google\/|openai\/)/i, '');
-        if (!cleanModel.toLowerCase().includes('flash')) {
-          selectedModel = cleanModel;
-        }
-      }
+      const selectedModel = this.mapToVertexModel(model);
 
       let contents: any[];
       let systemInstruction: string | undefined = systemInstructionOverride;
@@ -528,15 +541,7 @@ export class OpenRouterService {
     systemInstructionOverride?: string,
   ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     try {
-      // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
-      // Jika model dari client adalah pro/preview, gunakan model tersebut secara dinamis.
-      let selectedModel = this.defaultModel;
-      if (model) {
-        const cleanModel = model.replace(/^(google\/|openai\/)/i, '');
-        if (!cleanModel.toLowerCase().includes('flash')) {
-          selectedModel = cleanModel;
-        }
-      }
+      const selectedModel = this.mapToVertexModel(model);
 
       let contents: any[];
       let systemInstruction: string | undefined = systemInstructionOverride;
