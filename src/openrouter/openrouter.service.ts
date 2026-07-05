@@ -8,6 +8,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 export class OpenRouterService {
   private readonly logger = new Logger(OpenRouterService.name);
   private readonly ai: GoogleGenAI;
+  private readonly aiUS: GoogleGenAI;
   private readonly defaultModel: string;
   private readonly embeddingModel: string;
 
@@ -34,9 +35,14 @@ export class OpenRouterService {
         project: projectId,
         location: region,
       });
-      this.logger.log(`Google GenAI (Vertex AI) Client initialized successfully targeting ${region}.`);
-    } catch (err) {
-      this.logger.error(`Failed to initialize Google GenAI Client: ${err.message}`);
+      this.aiUS = new GoogleGenAI({
+        vertexai: true,
+        project: projectId,
+        location: 'us-central1',
+      });
+      this.logger.log(`Google GenAI (Vertex AI) Clients initialized successfully targeting ${region} and us-central1.`);
+    } catch (err: any) {
+      this.logger.error(`Failed to initialize Google GenAI Clients: ${err.message}`);
     }
 
     // Default to Gemini 2.5 Flash and automatically strip "google/" or "openai/" prefix if present
@@ -164,6 +170,16 @@ export class OpenRouterService {
     }
   }
   /**
+   * Menentukan klien Google GenAI (Singapura vs US) berdasarkan model
+   */
+  private getClientForModel(modelName: string): GoogleGenAI {
+    if (modelName.includes('pro')) {
+      return this.aiUS;
+    }
+    return this.ai;
+  }
+
+  /**
    * Memetakan nama model dari client ke model ID yang valid di Vertex AI
    */
   private mapToVertexModel(model?: string): string {
@@ -173,9 +189,9 @@ export class OpenRouterService {
 
     const cleanModel = model.replace(/^(google\/|openai\/)/i, '').toLowerCase();
 
-    // Jika model mengandung kata 'pro', arahkan ke gemini-1.5-pro yang stabil di Vertex AI Singapura
+    // Jika model mengandung kata 'pro', arahkan ke gemini-2.5-pro yang stabil di Vertex AI US
     if (cleanModel.includes('pro')) {
-      return 'gemini-1.5-pro';
+      return 'gemini-2.5-pro';
     }
 
     // Jika model mengandung kata 'flash', gunakan defaultModel dari .env
@@ -248,7 +264,8 @@ export class OpenRouterService {
       }
 
       // Mulai streaming dari Vertex AI
-      const responseStream = await this.ai.models.generateContentStream({
+      const client = this.getClientForModel(selectedModel);
+      const responseStream = await client.models.generateContentStream({
         model: selectedModel,
         contents,
         config,
@@ -591,7 +608,8 @@ export class OpenRouterService {
         config.tools = toolsList;
       }
 
-      const response = await this.ai.models.generateContent({
+      const client = this.getClientForModel(selectedModel);
+      const response = await client.models.generateContent({
         model: selectedModel,
         contents,
         config,
