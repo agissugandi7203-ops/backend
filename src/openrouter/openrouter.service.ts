@@ -189,9 +189,9 @@ export class OpenRouterService {
 
     const cleanModel = model.replace(/^(google\/|openai\/)/i, '').toLowerCase();
 
-    // Jika model mengandung kata 'pro', arahkan ke gemini-2.5-pro yang stabil di Vertex AI US
+    // Jika model mengandung kata 'pro', gunakan gemini-3.1-pro-preview di region US
     if (cleanModel.includes('pro')) {
-      return 'gemini-2.5-pro';
+      return 'gemini-3.1-pro-preview';
     }
 
     // Jika model mengandung kata 'flash', gunakan defaultModel dari .env
