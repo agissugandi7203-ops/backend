@@ -31,4 +31,8 @@ export class UpdateReportDto {
   @IsOptional()
   @IsString()
   admin_notes?: string;
+
+  @IsOptional()
+  @IsString()
+  ai_notes?: string;
 }

@@ -6,6 +6,7 @@ import {
   Res,
   HttpStatus,
   HttpException,
+  Req,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { ChatThrottlerGuard } from '../auth/chat-throttler.guard';
@@ -33,8 +34,8 @@ export class ChatController {
   @ApiResponse({ status: 201, description: 'Respon chatbot berhasil disusun.' })
   @ApiResponse({ status: 401, description: 'Pengguna tidak terautentikasi.' })
   @ApiResponse({ status: 429, description: 'Batas limitasi pesan tercapai (Throttled).' })
-  async instantChat(@Body() dto: ChatRequestDto) {
-    return this.chatService.processChat(dto);
+  async instantChat(@Body() dto: ChatRequestDto, @Req() req: any) {
+    return this.chatService.processChat(dto, req.user.id);
   }
 
   /**
@@ -49,8 +50,8 @@ export class ChatController {
   @ApiResponse({ status: 201, description: 'Streaming SSE dimulai.' })
   @ApiResponse({ status: 401, description: 'Pengguna tidak terautentikasi.' })
   @ApiResponse({ status: 429, description: 'Batas limitasi pesan tercapai.' })
-  async streamingChat(@Body() dto: ChatRequestDto, @Res() reply: any) {
-    const response = await this.chatService.processChatStream(dto);
+  async streamingChat(@Body() dto: ChatRequestDto, @Res() reply: any, @Req() req: any) {
+    const response = await this.chatService.processChatStream(dto, req.user.id);
 
     if (!response.body) {
       throw new HttpException(

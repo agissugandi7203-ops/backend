@@ -6,6 +6,7 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
+  private readonly embeddingCache = new Map<string, number[]>();
 
   constructor(
     private supabaseService: SupabaseService,
@@ -13,31 +14,73 @@ export class ChatService {
   ) {}
 
   /**
+   * Mengambil data profil singkat warga untuk info level/XP secara dinamis
+   */
+  private async getUserProfileBrief(userId?: string): Promise<{ level: number; xp: number; full_name?: string } | null> {
+    if (!userId) return null;
+    try {
+      const supabase = this.supabaseService.getClient();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('level, xp, full_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      return {
+        level: data.level ?? 1,
+        xp: data.xp ?? 0,
+        full_name: data.full_name || '',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Helper untuk mendeteksi kueri bermuatan regulasi perda
+   */
+  private isRegulationQuery(message: string): boolean {
+    if (!message) return false;
+    const keywords = ['perda', 'peraturan', 'denda', 'sanksi', 'hukum', 'pasal', 'undang', 'legal', 'regulasi'];
+    const lowerMessage = message.toLowerCase();
+    return keywords.some(kw => lowerMessage.includes(kw));
+  }
+
+  /**
    * Pemrosesan Chatbot RAG Standar (Respons Instan)
    */
-  async processChat(dto: ChatRequestDto): Promise<{ reply: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
+  async processChat(dto: ChatRequestDto, userId?: string): Promise<{ reply: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     this.validatePayloadSizes(dto);
     const sanitizedMessage = this.sanitizeInput(dto.message);
 
     try {
-      // 1. Cari konteks perda yang relevan dari database (RAG) - Lewati jika sapaan/chit-chat
-      const isGreeting = this.isChitChat(sanitizedMessage);
-      const contextText = isGreeting
-        ? ''
-        : await this.retrieveContext(sanitizedMessage);
+      // 1. Ambil data profil singkat warga
+      const userProfile = await this.getUserProfileBrief(userId);
 
-      // 2. Susun pesan instruksi sistem & multimodal content
+      // 2. Cari konteks perda dari DB (RAG) - Lewati jika sapaan/chit-chat, atau kueri umum jika webSearch aktif
+      const isGreeting = this.isChitChat(sanitizedMessage);
+      const isRegulation = this.isRegulationQuery(sanitizedMessage);
+      const shouldSearchDB = !isGreeting && (isRegulation || !dto.webSearch);
+
+      const contextText = shouldSearchDB
+        ? await this.retrieveContext(sanitizedMessage)
+        : '';
+
+      // 3. Susun pesan instruksi sistem & multimodal content
       const messages = this.buildMultimodalMessages(
         sanitizedMessage,
         contextText,
         dto,
+        userProfile,
       );
 
-      // 3. Panggil OpenRouter
+      // 4. Panggil OpenRouter
       const result = await this.openRouterService.getChatCompletion(
         messages,
         dto.model,
         dto.webSearch,
+        userId,
       );
       return { reply: result.content, annotations: result.annotations };
     } catch (error) {
@@ -52,29 +95,37 @@ export class ChatService {
   /**
    * Pemrosesan Chatbot RAG dengan Streaming (Server-Sent Events)
    */
-  async processChatStream(dto: ChatRequestDto): Promise<Response> {
+  async processChatStream(dto: ChatRequestDto, userId?: string): Promise<Response> {
     this.validatePayloadSizes(dto);
     const sanitizedMessage = this.sanitizeInput(dto.message);
 
     try {
-      // 1. Cari konteks perda dari database (RAG) - Lewati jika sapaan/chit-chat
-      const isGreeting = this.isChitChat(sanitizedMessage);
-      const contextText = isGreeting
-        ? ''
-        : await this.retrieveContext(sanitizedMessage);
+      // 1. Ambil data profil singkat warga
+      const userProfile = await this.getUserProfileBrief(userId);
 
-      // 2. Susun pesan instruksi sistem & multimodal content
+      // 2. Cari konteks perda dari DB (RAG) - Lewati jika sapaan/chit-chat, atau kueri umum jika webSearch aktif
+      const isGreeting = this.isChitChat(sanitizedMessage);
+      const isRegulation = this.isRegulationQuery(sanitizedMessage);
+      const shouldSearchDB = !isGreeting && (isRegulation || !dto.webSearch);
+
+      const contextText = shouldSearchDB
+        ? await this.retrieveContext(sanitizedMessage)
+        : '';
+
+      // 3. Susun pesan instruksi sistem & multimodal content
       const messages = this.buildMultimodalMessages(
         sanitizedMessage,
         contextText,
         dto,
+        userProfile,
       );
 
-      // 3. Panggil OpenRouter Stream API
+      // 4. Panggil OpenRouter Stream API
       return await this.openRouterService.getChatCompletionStream(
         messages,
         dto.model,
         dto.webSearch,
+        userId,
       );
     } catch (error) {
       this.logger.error(`Error starting chat stream: ${error.message}`);
@@ -90,8 +141,20 @@ export class ChatService {
    */
   private async retrieveContext(query: string): Promise<string> {
     try {
-      // Generate embedding dari kata kunci pencarian
-      const queryEmbedding = await this.openRouterService.getEmbedding(query);
+      // Generate/read embedding dari cache
+      let queryEmbedding: number[];
+      if (this.embeddingCache.has(query)) {
+        queryEmbedding = this.embeddingCache.get(query)!;
+        this.logger.log(`Menggunakan cached embedding untuk query: "${query}"`);
+      } else {
+        queryEmbedding = await this.openRouterService.getEmbedding(query);
+        // Jaga kapasitas cache maksimal 100 entri untuk menghindari memory leaks
+        if (this.embeddingCache.size >= 100) {
+          const firstKey = this.embeddingCache.keys().next().value;
+          if (firstKey) this.embeddingCache.delete(firstKey);
+        }
+        this.embeddingCache.set(query, queryEmbedding);
+      }
 
       const supabase = this.supabaseService.getClient();
       // Panggil fungsi RPC match_documents
@@ -295,10 +358,14 @@ export class ChatService {
   /**
    * Menyusun payload pesan multimodal OpenRouter
    */
+  /**
+   * Menyusun payload pesan multimodal OpenRouter
+   */
   private buildMultimodalMessages(
     userMessage: string,
     contextText: string,
     dto: ChatRequestDto,
+    userProfile?: { level: number; xp: number; full_name?: string } | null,
   ): any[] {
     const now = new Date();
     const dateOptions: Intl.DateTimeFormatOptions = {
@@ -322,6 +389,20 @@ export class ChatService {
       ? `\n      - STATUS PENCARIAN WEB: AKTIF. Hasil pencarian web otomatis disisipkan ke sistem Anda. Gunakan data tersebut untuk menjawab pertanyaan terkini (berita, tahun ${now.getFullYear()}, dll) secara akurat. Jawablah secara natural, padat, dan informatif.`
       : '';
 
+    const turnCount = (dto.history?.length || 0) + 1;
+
+    const profileContext = userProfile
+      ? `\n      - PROFIL WARGA AKTIF: Nama: ${userProfile.full_name || 'Warga'}, Level: ${userProfile.level}, XP: ${userProfile.xp}.`
+      : '';
+
+    const turnContext = turnCount === 1
+      ? `\n      - FASE PERCAKAPAN: Turn 1. Sapa pengguna secara hangat, ramah, dan sopan di awal kalimat pertama.`
+      : `\n      - FASE PERCAKAPAN: Turn ${turnCount}. JANGAN gunakan kalimat pembuka basa-basi atau sapaan (seperti "Halo Kak", "Selamat pagi/siang/sore", "Terima kasih", "Berdasarkan hasil...", dll). Langsung jawab pertanyaan pengguna secara to-the-point pada kalimat pertama.`;
+
+    const levelToneInstruction = userProfile && userProfile.level >= 5
+      ? `\n      - ATURAN NADA: Warga ini adalah Pahlawan Lingkungan Kota (Level >= 5). Sapa mereka dengan sebutan hormat "Pahlawan ${userProfile.full_name || 'Warga'}" atau "Kak Pahlawan ${userProfile.full_name || 'Warga'}" di turn pertama percakapan, dan apresiasi kontribusi besar mereka bagi kota secara santun.`
+      : `\n      - ATURAN NADA: Sapa pengguna secara ramah dengan "Kak" atau "Kakak".`;
+
     const systemPrompt = `
       Anda adalah Asisten Hukum & Peraturan Kota Genesis bernama Geni. Anda sangat ramah, hangat, menyambut, interaktif, dan cerdas.
       Tugas utama Anda adalah membantu warga memahami peraturan kota dengan sapaan hangat di awal pesan, lalu menyajikan penjelasan yang jelas, padat, dan tidak kaku (bersahabat).
@@ -338,19 +419,35 @@ export class ChatService {
       - Tanggal & Waktu Saat Ini: ${currentIndonesianDate}, pukul ${currentIndonesianTime} WIB.
       - **PENTING**: Informasi waktu ini disediakan HANYA sebagai acuan internal Anda untuk menjawab jika warga bertanya hal-hal yang berkaitan dengan waktu (seperti jadwal pembuangan sampah, tanggal hari lahir kota, jadwal pelayanan dinas, dll). 
       - **Batas Keras**: JANGAN PERNAH menyertakan, mengulang-ngulang, atau menginfokan tanggal & waktu saat ini di awal sapaan atau di pesan Anda kecuali ditanyakan secara eksplisit oleh warga! Ini membuat sapaan terkesan aneh dan tidak natural.
+      ${profileContext}${turnContext}${levelToneInstruction}
 
       PANDUAN RESPONS & PERSONA (LEBIH TERLATIH & SINGKAT):
-      1. MENYAMBUT & RAMAH: Mulailah pesan dengan sapaan hangat pendek (maksimal 1 baris) seperti "Halo Kak! 👋" atau "Selamat datang di Genesis! 😊". JANGAN menuliskan sapaan basa-basi pembuka yang terlalu panjang dan bertele-tele.
-      2. JAWABAN TO-THE-POINT (CONCISE): Langsung sajikan jawaban inti yang dicari warga secara padat dan efektif. Batasi panjang keseluruhan jawaban Anda maksimal **2-3 paragraf pendek** atau gunakan daftar poin (bullet points) jika membandingkan data. Hindari kalimat penjelasan yang berputar-putar.
-      3. FORMAT DRAF/SURAT/EMAIL: Jika warga meminta Anda untuk membuat draf email, surat formal, draf laporan pengaduan, atau template tulisan resmi lainnya, Anda WAJIB membungkus murni teks draf tersebut di dalam block code markdown dengan bahasa 'draft'. Contoh:
+      1. JAWABAN TO-THE-POINT (CONCISE): Langsung sajikan jawaban inti yang dicari warga secara padat dan efektif. Batasi panjang keseluruhan jawaban Anda maksimal **2-3 paragraf pendek** atau gunakan daftar poin (bullet points) jika membandingkan data. Hindari kalimat penjelasan yang berputar-putar.
+      2. FORMAT DRAF/SURAT/EMAIL: Jika warga meminta Anda untuk membuat draf email, surat formal, draf laporan pengaduan, atau template tulisan resmi lainnya, Anda WAJIB membungkus murni teks draf tersebut di dalam block code markdown dengan bahasa 'draft'. Contoh:
          \`\`\`draft
          Kepada Yth. Kepala Dinas...
          Isi draf...
          \`\`\`
          JANGAN menulis kalimat pembuka atau penutup obrolan Anda di dalam blok code 'draft' tersebut.
-      4. HINDARI FRASA TEMPLATE AI (NO FILLERS): JANGAN gunakan frasa template AI chatbot yang membosankan dan repetitif seperti "Ada hal lain yang bisa saya bantu?", "Jangan ragu untuk bertanya lagi!", "Senang menyapa Anda!", atau "Sebagai asisten yang siap membantu...". Cukup akhiri kalimat secara menjaga alur percakapan yang natural tanpa kalimat penutup template yang dipaksakan.
-      5. STRUKTUR MARKDOWN INDAH: Susun jawaban Anda menggunakan format Markdown yang rapi (tebal, miring, daftar poin, kutipan, bahkan tabel sederhana jika membandingkan data).
-      6. FITUR PANGGIL GAMBAR (VISUAL CALLING): Jika pengguna meminta contoh gambar, foto, atau ilustrasi visual, Anda diperbolehkan menyisipkan gambar secara langsung di dalam chat menggunakan format markdown: \`![deskripsi](URL_Gambar_Bebas)\`. Biarkan diri Anda memilih dan menentukan sendiri URL gambar yang relevan (misalnya menggunakan gambar bebas dari Unsplash atau sumber lainnya).
+      3. HINDARI FRASA TEMPLATE AI (NO FILLERS): JANGAN gunakan frasa template AI chatbot yang membosankan dan repetitif seperti "Ada hal lain yang bisa saya bantu?", "Jangan ragu untuk bertanya lagi!", "Senang menyapa Anda!", atau "Sebagai asisten yang siap membantu...". Cukup akhiri kalimat secara menjaga alur percakapan yang natural tanpa kalimat penutup template yang dipaksakan.
+      4. STRUKTUR MARKDOWN INDAH: Susun jawaban Anda menggunakan format Markdown yang rapi (tebal, miring, daftar poin, kutipan, bahkan tabel sederhana jika membandingkan data).
+      5. FITUR PANGGIL GAMBAR (VISUAL CALLING): JANGAN PERNAH menyisipkan gambar/foto di dalam chat menggunakan format markdown \`![deskripsi](URL)\` kecuali pengguna secara eksplisit meminta contoh visual/gambar (seperti "tunjukkan gambar...", "bagaimana foto..."). Jika diminta, gunakan HANYA link gambar terpercaya berikut:
+         - Contoh Sampah Organik: https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=500 (daur ulang/kompos)
+         - Contoh Sampah Anorganik: https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?w=500 (botol plastik)
+         - Panduan Genesis: https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=500 (taman kota bersih)
+         JANGAN mengarang link acak yang tidak valid atau mati.
+      6. TOMBOL NAVIGASI INTERAKTIF (NAVIGATION BUTTONS): Jika warga bertanya tentang cara melakukan tindakan di aplikasi (seperti melapor sampah, melihat leaderboard, menukar hadiah, profil), Anda WAJIB menyisipkan blok kode navigasi khusus di akhir respons Anda:
+         \`\`\`navigation
+         label: [Nama Tombol Tindakan]
+         route: [Route Halaman]
+         icon: [Ikon yang cocok: camera / trophy / gift / person]
+         \`\`\`
+         Gunakan route berikut yang terdaftar di aplikasi:
+         - Formulir Laporan Sampah Baru: /reports/create (ikon: camera)
+         - Leaderboard Warga: /leaderboard (ikon: trophy)
+         - Tukar Poin / Hadiah: /rewards (ikon: gift)
+         - Profil & Badges Warga: /profile (ikon: person)
+         JANGAN menulis kalimat pembuka atau penutup di dalam blok 'navigation' tersebut.
       7. GENTLE DEFLECTION (PENGALIHAN RAMAH): Jika warga menanyakan hal di luar topik regulasi resmi atau di luar konteks kota, JANGAN PERNAH menolak langsung secara kasar atau kaku. Sebaliknya, hubungkan secara kreatif dan santun ke konteks aturan lingkungan, kenyamanan hidup warga, kebersihan kota, atau ketertiban umum.
 
       KETENTUAN RAG (PENCARIAN DOKUMEN):
@@ -407,7 +504,6 @@ export class ChatService {
       let rawBase64 = dto.audio;
       let format = 'wav';
 
-      // Jika dikirim sebagai data URL, pisahkan header dan datanya
       if (dto.audio.startsWith('data:')) {
         const parts = dto.audio.split(';base64,');
         rawBase64 = parts[1] || dto.audio;

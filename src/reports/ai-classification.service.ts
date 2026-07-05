@@ -60,6 +60,7 @@ export class AiClassificationService implements OnModuleInit {
       const dangerLevel = result.danger_level || 'low';
       const confidenceScore = result.confidence_score || 0.0;
       const isValid = result.isValid === true;
+      const aiNotes = result.reason || 'Selesai dianalisis oleh AI';
 
       const supabase = this.supabaseService.getClient();
 
@@ -77,6 +78,7 @@ export class AiClassificationService implements OnModuleInit {
             waste_type: wasteType,
             danger_level: dangerLevel,
             confidence_score: confidenceScore,
+            ai_notes: aiNotes,
             updated_at: new Date().toISOString(),
           })
           .eq('id', reportId);
@@ -113,6 +115,7 @@ export class AiClassificationService implements OnModuleInit {
             waste_type: wasteType,
             danger_level: dangerLevel,
             confidence_score: confidenceScore,
+            ai_notes: aiNotes,
             updated_at: new Date().toISOString(),
           })
           .eq('id', reportId);

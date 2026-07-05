@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import * as fs from 'fs';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class OpenRouterService {
@@ -10,7 +11,10 @@ export class OpenRouterService {
   private readonly defaultModel: string;
   private readonly embeddingModel: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private supabaseService: SupabaseService,
+  ) {
     const projectId = this.configService.get<string>('GCS_PROJECT_ID') || 'arief-fajar';
     const keyFilePath = this.configService.get<string>('GCS_KEY_FILE_PATH');
 
@@ -57,11 +61,34 @@ export class OpenRouterService {
         continue;
       }
 
+      if (msg.role === 'tool') {
+        contents.push({
+          role: 'tool',
+          parts: [{
+            functionResponse: {
+              name: msg.name,
+              response: msg.response,
+            }
+          }]
+        });
+        continue;
+      }
+
+      if (msg.role === 'assistant' && msg.functionCall) {
+        contents.push({
+          role: 'model',
+          parts: [{ functionCall: msg.functionCall }]
+        });
+        continue;
+      }
+
       const role = msg.role === 'assistant' ? 'model' : 'user';
       const parts: any[] = [];
 
       if (typeof msg.content === 'string') {
-        parts.push({ text: msg.content });
+        if (msg.content.length > 0) {
+          parts.push({ text: msg.content });
+        }
       } else if (Array.isArray(msg.content)) {
         for (const item of msg.content) {
           if (item.type === 'text') {
@@ -136,10 +163,14 @@ export class OpenRouterService {
   /**
    * Mengirim request chat completion dengan streaming (Dibungkus agar kompatibel dengan SSE OpenAI/OpenRouter)
    */
+  /**
+   * Mengirim request chat completion dengan streaming (Dibungkus agar kompatibel dengan SSE OpenAI/OpenRouter)
+   */
   async getChatCompletionStream(
     messages: any[],
     model?: string,
     webSearch?: boolean,
+    userId?: string,
   ): Promise<Response> {
     try {
       // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
@@ -157,11 +188,40 @@ export class OpenRouterService {
       if (systemInstruction) {
         config.systemInstruction = systemInstruction;
       }
-      if (webSearch) {
-        config.tools = [{ googleSearch: {} }];
-      }
 
-      // Mulai streaming dari Vertex AI Singapura
+      // Build tools
+      const toolsList: any[] = [];
+      if (webSearch) {
+        toolsList.push({ googleSearch: {} });
+      }
+      
+      // Tambahkan function calling tools
+      toolsList.push({
+        functionDeclarations: [
+          {
+            name: 'getGamificationStats',
+            description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
+            parameters: { type: 'OBJECT', properties: {} }
+          },
+          {
+            name: 'getRecentReports',
+            description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
+            parameters: { type: 'OBJECT', properties: {} }
+          },
+          {
+            name: 'getTopLeaderboard',
+            description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
+            parameters: { type: 'OBJECT', properties: {} }
+          }
+        ]
+      });
+
+      // Tambahkan code execution tool
+      toolsList.push({ codeExecution: {} });
+
+      config.tools = toolsList;
+
+      // Mulai streaming dari Vertex AI
       const responseStream = await this.ai.models.generateContentStream({
         model: selectedModel,
         contents,
@@ -169,6 +229,8 @@ export class OpenRouterService {
       });
 
       const self = this;
+      let functionCallToExecute: any = null;
+
       // Buat ReadableStream kustom untuk membungkus data ke dalam format SSE OpenAI
       const readable = new ReadableStream({
         async start(controller) {
@@ -182,16 +244,26 @@ export class OpenRouterService {
             const seenUris = new Set<string>();
             const citationsList: Array<{ title: string; url: string }> = [];
 
+            let textBuffer = '';
+            let firstChunkFlushed = false;
+            const firstChunkThreshold = 250;
+            const sentenceThreshold = 100;
+            const sentenceBoundary = /[.!?\n]/;
+            let annotations: any[] | undefined = undefined;
+
             for await (const chunk of responseStream) {
+              if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+                functionCallToExecute = chunk.functionCalls[0];
+                break;
+              }
+
               const text = chunk.text;
               
               // Ekstrak metadata pencarian web (grounding) jika dikembalikan di chunk ini
-              let annotations: any[] | undefined = undefined;
               const searchChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
               const searchSupports = chunk.candidates?.[0]?.groundingMetadata?.groundingSupports;
               
               if (searchChunks) {
-                // Catat link unik ke list rujukan kita
                 for (const sc of searchChunks) {
                   const rawUri = sc.web?.uri;
                   if (rawUri) {
@@ -225,7 +297,37 @@ export class OpenRouterService {
                 });
               }
 
-              if (text || annotations) {
+              if (text) {
+                textBuffer += text;
+                const shouldFlush = !firstChunkFlushed
+                  ? (textBuffer.length >= firstChunkThreshold || textBuffer.includes('\n\n'))
+                  : (textBuffer.length >= sentenceThreshold || sentenceBoundary.test(textBuffer));
+
+                if (shouldFlush) {
+                  const ssePayload = {
+                    id: streamId,
+                    object: 'chat.completion.chunk',
+                    created: Math.floor(Date.now() / 1000),
+                    model: selectedModel,
+                    provider: 'GoogleCloud',
+                    choices: [
+                      {
+                        index: 0,
+                        delta: {
+                          content: textBuffer,
+                          role: 'assistant',
+                          ...(annotations ? { annotations } : {}),
+                        },
+                        finish_reason: null,
+                      },
+                    ],
+                  };
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+                  firstChunkFlushed = true;
+                  textBuffer = '';
+                  annotations = undefined;
+                }
+              } else if (annotations) {
                 const ssePayload = {
                   id: streamId,
                   object: 'chat.completion.chunk',
@@ -236,34 +338,104 @@ export class OpenRouterService {
                     {
                       index: 0,
                       delta: {
-                        content: text || '',
+                        content: '',
                         role: 'assistant',
-                        ...(annotations ? { annotations } : {}),
+                        annotations,
                       },
                       finish_reason: null,
                     },
                   ],
                 };
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+                annotations = undefined;
               }
+            }
+
+            // Jika ada function call yang diintersept, kita eksekusi dan teruskan recursive stream ke controller
+            if (functionCallToExecute) {
+              const result = await self.executeFunctionCall(
+                functionCallToExecute.name,
+                functionCallToExecute.args,
+                userId,
+              );
+
+              const updatedMessages = [
+                ...messages,
+                {
+                  role: 'assistant',
+                  functionCall: functionCallToExecute,
+                  content: '',
+                },
+                {
+                  role: 'tool',
+                  name: functionCallToExecute.name,
+                  response: { result },
+                  content: '',
+                }
+              ];
+
+              const recursiveResponse = await self.getChatCompletionStream(
+                updatedMessages,
+                model,
+                webSearch,
+                userId,
+              );
+
+              const reader = recursiveResponse.body?.getReader();
+              if (reader) {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  controller.enqueue(value);
+                }
+              }
+              return;
+            }
+
+            // Flush sisa buffer teks jika ada sebelum citations
+            if (textBuffer.length > 0) {
+              const ssePayload = {
+                id: streamId,
+                object: 'chat.completion.chunk',
+                created: Math.floor(Date.now() / 1000),
+                model: selectedModel,
+                provider: 'GoogleCloud',
+                choices: [
+                  {
+                    index: 0,
+                    delta: {
+                      content: textBuffer,
+                      role: 'assistant',
+                    },
+                    finish_reason: null,
+                  },
+                ],
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
             }
 
             // Jika ada sitasi terkumpul, kirimkan daftar tautan di akhir respon secara otomatis
             if (citationsList.length > 0) {
               let citationText = '\n\n**Sumber Referensi:**';
-              for (const cit of citationsList) {
-                let uri = cit.url;
-                if (uri.includes('grounding-redirect') || uri.includes('grounding-api-redirect')) {
-                  uri = await self.resolveRedirectUrl(uri);
-                }
+
+              const resolvedList = await Promise.all(
+                citationsList.map(async (cit) => {
+                  let uri = cit.url;
+                  if (uri.includes('grounding-redirect') || uri.includes('grounding-api-redirect')) {
+                    uri = await self.resolveRedirectUrl(uri);
+                  }
+                  return { ...cit, url: uri };
+                })
+              );
+
+              for (const cit of resolvedList) {
                 let domain = 'web';
                 try {
-                  domain = new URL(uri).hostname.replace('www.', '');
+                  domain = new URL(cit.url).hostname.replace('www.', '');
                 } catch (_) {}
-                citationText += `\n* [${domain}](${uri})`;
+                citationText += `\n* [${domain}](${cit.url})`;
               }
 
-              // Buat payload SSE berisi teks sitasi akhir
               const citationPayload = {
                 id: streamId,
                 object: 'chat.completion.chunk',
@@ -329,6 +501,7 @@ export class OpenRouterService {
     messages: any[],
     model?: string,
     webSearch?: boolean,
+    userId?: string,
   ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     try {
       // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
@@ -346,15 +519,67 @@ export class OpenRouterService {
       if (systemInstruction) {
         config.systemInstruction = systemInstruction;
       }
+
+      // Build tools
+      const toolsList: any[] = [];
       if (webSearch) {
-        config.tools = [{ googleSearch: {} }];
+        toolsList.push({ googleSearch: {} });
       }
+      
+      // Tambahkan function calling tools
+      toolsList.push({
+        functionDeclarations: [
+          {
+            name: 'getGamificationStats',
+            description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
+            parameters: { type: 'OBJECT', properties: {} }
+          },
+          {
+            name: 'getRecentReports',
+            description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
+            parameters: { type: 'OBJECT', properties: {} }
+          },
+          {
+            name: 'getTopLeaderboard',
+            description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
+            parameters: { type: 'OBJECT', properties: {} }
+          }
+        ]
+      });
+
+      // Tambahkan code execution tool
+      toolsList.push({ codeExecution: {} });
+
+      config.tools = toolsList;
 
       const response = await this.ai.models.generateContent({
         model: selectedModel,
         contents,
         config,
       });
+
+      // Jika Gemini ingin memanggil fungsi lokal
+      if (response.functionCalls && response.functionCalls.length > 0) {
+        const functionCall = response.functionCalls[0];
+        const result = await this.executeFunctionCall(functionCall.name!, functionCall.args, userId);
+        
+        const updatedMessages = [
+          ...messages,
+          {
+            role: 'assistant',
+            functionCall: functionCall,
+            content: '',
+          },
+          {
+            role: 'tool',
+            name: functionCall.name!,
+            response: { result },
+            content: '',
+          }
+        ];
+
+        return this.getChatCompletion(updatedMessages, model, webSearch, userId);
+      }
 
       // Proses pencarian web / grounding
       let annotations: any[] = [];
@@ -385,22 +610,37 @@ export class OpenRouterService {
       if (searchChunks && searchChunks.length > 0) {
         let citationText = '\n\n**Sumber Referensi:**';
         const seenUris = new Set<string>();
+        const parsedCitations: Array<{ title: string; url: string }> = [];
+
         for (const sc of searchChunks) {
           const rawUri = sc.web?.uri;
           if (rawUri) {
-            let uri = rawUri;
-            if (rawUri.includes('grounding-redirect') || rawUri.includes('grounding-api-redirect')) {
-              uri = await this.resolveRedirectUrl(rawUri);
-            }
+            const uri = this.extractDirectUrl(rawUri);
+            const title = sc.web?.title || 'Sumber Terpercaya';
             if (!seenUris.has(uri)) {
               seenUris.add(uri);
-              let domain = 'web';
-              try {
-                domain = new URL(uri).hostname.replace('www.', '');
-              } catch (_) {}
-              citationText += `\n* [${domain}](${uri})`;
+              parsedCitations.push({ title, url: uri });
             }
           }
+        }
+
+        // Resolusi url paralel
+        const resolvedCitations = await Promise.all(
+          parsedCitations.map(async (cit) => {
+            let uri = cit.url;
+            if (uri.includes('grounding-redirect') || uri.includes('grounding-api-redirect')) {
+              uri = await this.resolveRedirectUrl(uri);
+            }
+            return { ...cit, url: uri };
+          })
+        );
+
+        for (const cit of resolvedCitations) {
+          let domain = 'web';
+          try {
+            domain = new URL(cit.url).hostname.replace('www.', '');
+          } catch (_) {}
+          citationText += `\n* [${domain}](${cit.url})`;
         }
         finalContent += citationText;
       }
@@ -416,6 +656,91 @@ export class OpenRouterService {
   }
 
   /**
+   * Eksekusi fungsi lokal berdasarkan permintaan Gemini (Function Calling)
+   */
+  private async executeFunctionCall(name: string, args: any, userId?: string): Promise<any> {
+    const supabase = this.supabaseService.getClient();
+    this.logger.log(`Executing function call: ${name} with args: ${JSON.stringify(args)}`);
+
+    try {
+      if (name === 'getGamificationStats') {
+        if (!userId) return { error: 'User tidak terautentikasi' };
+        
+        // 1. Ambil data profil dasar
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, full_name, xp, level, streak')
+          .eq('id', userId)
+          .maybeSingle();
+
+        // 2. Query rank dari global_leaderboard
+        const { data: rankData } = await supabase
+          .from('global_leaderboard')
+          .select('rank')
+          .eq('id', userId)
+          .maybeSingle();
+
+        // 3. Ambil badges yang diperoleh
+        const { data: badgesData } = await supabase
+          .from('profile_badges')
+          .select('earned_at, badges(title, description, icon_url)')
+          .eq('profile_id', userId);
+
+        const badges = (badgesData || []).map((pb: any) => ({
+          earned_at: pb.earned_at,
+          ...pb.badges,
+        }));
+
+        return {
+          username: profile?.username || 'Warga',
+          full_name: profile?.full_name || '',
+          xp: profile?.xp ?? 0,
+          level: profile?.level ?? 1,
+          streak: profile?.streak ?? 0,
+          rank: rankData?.rank || 1,
+          badges,
+        };
+      }
+
+      if (name === 'getRecentReports') {
+        if (!userId) return { error: 'User tidak terautentikasi' };
+        const { data: reports, error } = await supabase
+          .from('reports')
+          .select('id, description, status, created_at')
+          .eq('reporter_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (error) return { error: error.message };
+        return reports || [];
+      }
+
+      if (name === 'getTopLeaderboard') {
+        const { data: leaderboard, error } = await supabase
+          .from('profiles')
+          .select('username, full_name, xp, level')
+          .eq('role', 'citizen')
+          .order('xp', { ascending: false })
+          .limit(5);
+
+        if (error) return { error: error.message };
+        return (leaderboard || []).map((user, idx) => ({
+          rank: idx + 1,
+          username: user.username,
+          full_name: user.full_name,
+          xp: user.xp,
+          level: user.level,
+        }));
+      }
+
+      return { error: `Fungsi ${name} tidak dikenali.` };
+    } catch (err) {
+      this.logger.error(`Error executing function call ${name}: ${err.message}`);
+      return { error: `Gagal memproses data: ${err.message}` };
+    }
+  }
+
+  /**
    * Mengirim gambar (buffer) untuk klasifikasi otomatis di Fitur 4
    */
   async classifyImage(imageBuffer: Buffer, mimeType: string): Promise<any> {
@@ -427,13 +752,15 @@ export class OpenRouterService {
       2. danger_level (Tingkat bahaya): pilih salah satu dari 'low', 'medium', atau 'high'.
       3. isValid (Validitas): Apakah gambar ini benar-benar memperlihatkan pencemaran lingkungan, tumpukan sampah liar, limbah, atau kerusakan ekosistem yang valid? (true atau false). Jika gambar berupa selfie, pemandangan bersih, objek acak yang tidak berhubungan, atau gambar spam, maka kembalikan false.
       4. confidence_score: Tingkat keyakinan Anda terhadap klasifikasi ini antara 0.0 hingga 1.0.
+      5. reason: Alasan singkat dalam bahasa Indonesia mengapa gambar diklasifikasikan demikian (maksimal 2 kalimat).
 
       Kembalikan respons HANYA dalam format JSON valid dengan struktur:
       {
         "waste_type": "string",
         "danger_level": "string",
         "isValid": boolean,
-        "confidence_score": number
+        "confidence_score": number,
+        "reason": "string"
       }
     `;
 
