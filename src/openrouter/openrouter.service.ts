@@ -669,7 +669,7 @@ export class OpenRouterService {
         // 1. Ambil data profil dasar
         const { data: profile } = await supabase
           .from('profiles')
-          .select('username, full_name, xp, level, streak')
+          .select('username, full_name, xp, level, current_streak')
           .eq('id', userId)
           .maybeSingle();
 
@@ -683,12 +683,14 @@ export class OpenRouterService {
         // 3. Ambil badges yang diperoleh
         const { data: badgesData } = await supabase
           .from('profile_badges')
-          .select('earned_at, badges(title, description, icon_url)')
+          .select('earned_at, badges(name, description, icon_url)')
           .eq('profile_id', userId);
 
         const badges = (badgesData || []).map((pb: any) => ({
           earned_at: pb.earned_at,
-          ...pb.badges,
+          title: pb.badges?.name || '',
+          description: pb.badges?.description || '',
+          icon_url: pb.badges?.icon_url || '',
         }));
 
         return {
@@ -696,7 +698,7 @@ export class OpenRouterService {
           full_name: profile?.full_name || '',
           xp: profile?.xp ?? 0,
           level: profile?.level ?? 1,
-          streak: profile?.streak ?? 0,
+          streak: (profile as any)?.current_streak ?? 0,
           rank: rankData?.rank || 1,
           badges,
         };
