@@ -211,6 +211,7 @@ export class OpenRouterService {
     webSearch?: boolean,
     userId?: string,
     systemInstructionOverride?: string,
+    useRAG?: boolean,
   ): Promise<Response> {
     try {
       const selectedModel = this.mapToVertexModel(model);
@@ -233,32 +234,7 @@ export class OpenRouterService {
       }
 
       // Build tools
-      const toolsList: any[] = [];
-      if (webSearch) {
-        toolsList.push({ googleSearch: {} });
-      } else {
-        // Tambahkan function calling tools HANYA jika tidak menggunakan webSearch
-        toolsList.push({
-          functionDeclarations: [
-            {
-              name: 'getGamificationStats',
-              description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
-              parameters: { type: 'OBJECT', properties: {} }
-            },
-            {
-              name: 'getRecentReports',
-              description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
-              parameters: { type: 'OBJECT', properties: {} }
-            },
-            {
-              name: 'getTopLeaderboard',
-              description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
-              parameters: { type: 'OBJECT', properties: {} }
-            }
-          ]
-        });
-      }
-
+      const toolsList = this.buildTools(!!webSearch, !!useRAG);
       if (toolsList.length > 0) {
         config.tools = toolsList;
       }
@@ -313,10 +289,10 @@ export class OpenRouterService {
               
               if (searchChunks) {
                 for (const sc of searchChunks) {
-                  const rawUri = sc.web?.uri;
+                  const rawUri = sc.web?.uri || sc.retrievedContext?.uri || (sc.retrievedContext as any)?.gcsUri;
                   if (rawUri) {
                     const uri = self.extractDirectUrl(rawUri);
-                    const title = sc.web?.title || 'Sumber Terpercaya';
+                    const title = sc.web?.title || sc.retrievedContext?.title || 'Dokumen Regulasi';
                     if (!seenUris.has(uri)) {
                       seenUris.add(uri);
                       citationsList.push({ title, url: uri });
@@ -330,14 +306,16 @@ export class OpenRouterService {
                   const sourceIndices = support.groundingChunkIndices || [];
                   const firstSourceIndex = sourceIndices[0] ?? 0;
                   const searchChunk = searchChunks[firstSourceIndex];
-                  const directUrl = self.extractDirectUrl(searchChunk?.web?.uri || '');
+                  const rawUri = searchChunk?.web?.uri || searchChunk?.retrievedContext?.uri || (searchChunk?.retrievedContext as any)?.gcsUri || '';
+                  const directUrl = self.extractDirectUrl(rawUri);
+                  const title = searchChunk?.web?.title || searchChunk?.retrievedContext?.title || 'Dokumen Regulasi';
                   
                   return {
                     type: 'web_search_citation',
                     url_citation: {
                       url: directUrl,
-                      title: searchChunk?.web?.title || 'Sumber Terpercaya',
-                      content: searchChunk?.web?.title || '',
+                      title: title,
+                      content: title,
                       start_index: support.segment?.startIndex ?? 0,
                       end_index: support.segment?.endIndex ?? 0,
                     }
@@ -556,6 +534,7 @@ export class OpenRouterService {
     webSearch?: boolean,
     userId?: string,
     systemInstructionOverride?: string,
+    useRAG?: boolean,
   ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     try {
       const selectedModel = this.mapToVertexModel(model);
@@ -578,32 +557,7 @@ export class OpenRouterService {
       }
 
       // Build tools
-      const toolsList: any[] = [];
-      if (webSearch) {
-        toolsList.push({ googleSearch: {} });
-      } else {
-        // Tambahkan function calling tools HANYA jika tidak menggunakan webSearch
-        toolsList.push({
-          functionDeclarations: [
-            {
-              name: 'getGamificationStats',
-              description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
-              parameters: { type: 'OBJECT', properties: {} }
-            },
-            {
-              name: 'getRecentReports',
-              description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
-              parameters: { type: 'OBJECT', properties: {} }
-            },
-            {
-              name: 'getTopLeaderboard',
-              description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
-              parameters: { type: 'OBJECT', properties: {} }
-            }
-          ]
-        });
-      }
-
+      const toolsList = this.buildTools(!!webSearch, !!useRAG);
       if (toolsList.length > 0) {
         config.tools = toolsList;
       }
@@ -652,14 +606,16 @@ export class OpenRouterService {
           const sourceIndices = support.groundingChunkIndices || [];
           const firstSourceIndex = sourceIndices[0] ?? 0;
           const chunk = searchChunks[firstSourceIndex];
-          const directUrl = this.extractDirectUrl(chunk?.web?.uri || '');
+          const rawUri = chunk?.web?.uri || chunk?.retrievedContext?.uri || (chunk?.retrievedContext as any)?.gcsUri || '';
+          const directUrl = this.extractDirectUrl(rawUri);
+          const title = chunk?.web?.title || chunk?.retrievedContext?.title || 'Dokumen Regulasi';
           
           return {
             type: 'web_search_citation',
             url_citation: {
               url: directUrl,
-              title: chunk?.web?.title || 'Sumber Terpercaya',
-              content: chunk?.web?.title || '',
+              title: title,
+              content: title,
               start_index: support.segment?.startIndex ?? 0,
               end_index: support.segment?.endIndex ?? 0,
             }
@@ -674,10 +630,10 @@ export class OpenRouterService {
         const parsedCitations: Array<{ title: string; url: string }> = [];
 
         for (const sc of searchChunks) {
-          const rawUri = sc.web?.uri;
+          const rawUri = sc.web?.uri || sc.retrievedContext?.uri || (sc.retrievedContext as any)?.gcsUri;
           if (rawUri) {
             const uri = this.extractDirectUrl(rawUri);
-            const title = sc.web?.title || 'Sumber Terpercaya';
+            const title = sc.web?.title || sc.retrievedContext?.title || 'Dokumen Regulasi';
             if (!seenUris.has(uri)) {
               seenUris.add(uri);
               parsedCitations.push({ title, url: uri });
@@ -938,5 +894,48 @@ export class OpenRouterService {
     } catch (_) {}
     
     return url;
+  }
+
+  /**
+   * Menyusun daftar tools (Google Search, Vertex AI Search RAG, atau Function Declarations lokal)
+   */
+  private buildTools(webSearch: boolean, useRAG?: boolean): any[] {
+    const toolsList: any[] = [];
+    if (webSearch) {
+      toolsList.push({ googleSearch: {} });
+    } else if (useRAG) {
+      const datastoreId = this.configService.get<string>('VERTEX_AI_DATASTORE_ID');
+      if (datastoreId) {
+        const projectId = this.configService.get<string>('GCS_PROJECT_ID') || 'arief-fajar';
+        toolsList.push({
+          retrieval: {
+            vertexAiSearch: {
+              datastore: `projects/${projectId}/locations/global/collections/default_collection/dataStores/${datastoreId}`
+            }
+          }
+        });
+      }
+    } else {
+      toolsList.push({
+        functionDeclarations: [
+          {
+            name: 'getGamificationStats',
+            description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
+            parameters: { type: 'OBJECT', properties: {} }
+          },
+          {
+            name: 'getRecentReports',
+            description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
+            parameters: { type: 'OBJECT', properties: {} }
+          },
+          {
+            name: 'getTopLeaderboard',
+            description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
+            parameters: { type: 'OBJECT', properties: {} }
+          }
+        ]
+      });
+    }
+    return toolsList;
   }
 }

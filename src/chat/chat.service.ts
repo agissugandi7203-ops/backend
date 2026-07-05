@@ -58,10 +58,15 @@ export class ChatService {
       // 1. Ambil data profil singkat warga
       const userProfile = await this.getUserProfileBrief(userId);
 
-      // 2. Cari konteks perda dari DB (RAG) - Lewati jika sapaan/chit-chat, atau kueri umum jika webSearch aktif
+      // 2. Tentukan penggunaan Vertex AI Search RAG (Grounding) atau Supabase RAG lokal
       const isGreeting = this.isChitChat(sanitizedMessage);
       const isRegulation = this.isRegulationQuery(sanitizedMessage);
-      const shouldSearchDB = !isGreeting && (isRegulation || !dto.webSearch);
+      
+      const datastoreId = process.env.VERTEX_AI_DATASTORE_ID;
+      const useRAG = !!datastoreId && !isGreeting && isRegulation && !dto.webSearch;
+      
+      // Jika menggunakan Vertex AI Search, kita lewati query database lokal Supabase
+      const shouldSearchDB = !useRAG && !isGreeting && (isRegulation || !dto.webSearch);
 
       const contextText = shouldSearchDB
         ? await this.retrieveContext(sanitizedMessage)
@@ -75,12 +80,14 @@ export class ChatService {
         userProfile,
       );
 
-      // 4. Panggil OpenRouter
+      // 4. Panggil OpenRouter / Vertex AI
       const result = await this.openRouterService.getChatCompletion(
         messages,
         dto.model,
         dto.webSearch,
         userId,
+        undefined,
+        useRAG,
       );
       return { reply: result.content, annotations: result.annotations };
     } catch (error) {
@@ -103,10 +110,15 @@ export class ChatService {
       // 1. Ambil data profil singkat warga
       const userProfile = await this.getUserProfileBrief(userId);
 
-      // 2. Cari konteks perda dari DB (RAG) - Lewati jika sapaan/chit-chat, atau kueri umum jika webSearch aktif
+      // 2. Tentukan penggunaan Vertex AI Search RAG (Grounding) atau Supabase RAG lokal
       const isGreeting = this.isChitChat(sanitizedMessage);
       const isRegulation = this.isRegulationQuery(sanitizedMessage);
-      const shouldSearchDB = !isGreeting && (isRegulation || !dto.webSearch);
+      
+      const datastoreId = process.env.VERTEX_AI_DATASTORE_ID;
+      const useRAG = !!datastoreId && !isGreeting && isRegulation && !dto.webSearch;
+      
+      // Jika menggunakan Vertex AI Search, kita lewati query database lokal Supabase
+      const shouldSearchDB = !useRAG && !isGreeting && (isRegulation || !dto.webSearch);
 
       const contextText = shouldSearchDB
         ? await this.retrieveContext(sanitizedMessage)
@@ -120,12 +132,14 @@ export class ChatService {
         userProfile,
       );
 
-      // 4. Panggil OpenRouter Stream API
+      // 4. Panggil OpenRouter / Vertex AI Stream API
       return await this.openRouterService.getChatCompletionStream(
         messages,
         dto.model,
         dto.webSearch,
         userId,
+        undefined,
+        useRAG,
       );
     } catch (error) {
       this.logger.error(`Error starting chat stream: ${error.message}`);
