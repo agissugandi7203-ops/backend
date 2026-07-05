@@ -45,7 +45,11 @@ export class OpenRouterService {
     
     // Default to text-embedding-004 and strip prefix
     const rawEmbedModel = this.configService.get<string>('OPENROUTER_EMBEDDING_MODEL') || 'text-embedding-004';
-    this.embeddingModel = rawEmbedModel.replace(/^(google\/|openai\/)/i, '');
+    let cleanEmbed = rawEmbedModel.replace(/^(google\/|openai\/)/i, '');
+    if (cleanEmbed.includes('gemini-embedding')) {
+      cleanEmbed = 'text-embedding-004';
+    }
+    this.embeddingModel = cleanEmbed;
   }
 
   /**
@@ -193,33 +197,32 @@ export class OpenRouterService {
       const toolsList: any[] = [];
       if (webSearch) {
         toolsList.push({ googleSearch: {} });
+      } else {
+        // Tambahkan function calling tools HANYA jika tidak menggunakan webSearch
+        toolsList.push({
+          functionDeclarations: [
+            {
+              name: 'getGamificationStats',
+              description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
+              parameters: { type: 'OBJECT', properties: {} }
+            },
+            {
+              name: 'getRecentReports',
+              description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
+              parameters: { type: 'OBJECT', properties: {} }
+            },
+            {
+              name: 'getTopLeaderboard',
+              description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
+              parameters: { type: 'OBJECT', properties: {} }
+            }
+          ]
+        });
       }
-      
-      // Tambahkan function calling tools
-      toolsList.push({
-        functionDeclarations: [
-          {
-            name: 'getGamificationStats',
-            description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
-            parameters: { type: 'OBJECT', properties: {} }
-          },
-          {
-            name: 'getRecentReports',
-            description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
-            parameters: { type: 'OBJECT', properties: {} }
-          },
-          {
-            name: 'getTopLeaderboard',
-            description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
-            parameters: { type: 'OBJECT', properties: {} }
-          }
-        ]
-      });
 
-      // Tambahkan code execution tool
-      toolsList.push({ codeExecution: {} });
-
-      config.tools = toolsList;
+      if (toolsList.length > 0) {
+        config.tools = toolsList;
+      }
 
       // Mulai streaming dari Vertex AI
       const responseStream = await this.ai.models.generateContentStream({
@@ -524,33 +527,32 @@ export class OpenRouterService {
       const toolsList: any[] = [];
       if (webSearch) {
         toolsList.push({ googleSearch: {} });
+      } else {
+        // Tambahkan function calling tools HANYA jika tidak menggunakan webSearch
+        toolsList.push({
+          functionDeclarations: [
+            {
+              name: 'getGamificationStats',
+              description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
+              parameters: { type: 'OBJECT', properties: {} }
+            },
+            {
+              name: 'getRecentReports',
+              description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
+              parameters: { type: 'OBJECT', properties: {} }
+            },
+            {
+              name: 'getTopLeaderboard',
+              description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
+              parameters: { type: 'OBJECT', properties: {} }
+            }
+          ]
+        });
       }
-      
-      // Tambahkan function calling tools
-      toolsList.push({
-        functionDeclarations: [
-          {
-            name: 'getGamificationStats',
-            description: 'Mengambil data profil gamifikasi warga yang aktif saat ini, termasuk level, XP, streak, dan daftar lencana (badges).',
-            parameters: { type: 'OBJECT', properties: {} }
-          },
-          {
-            name: 'getRecentReports',
-            description: 'Mengambil daftar laporan masalah lingkungan terbaru yang dilaporkan oleh warga yang aktif beserta status penanganan terbarunya.',
-            parameters: { type: 'OBJECT', properties: {} }
-          },
-          {
-            name: 'getTopLeaderboard',
-            description: 'Mengambil peringkat 5 besar warga dengan XP tertinggi saat ini di kota.',
-            parameters: { type: 'OBJECT', properties: {} }
-          }
-        ]
-      });
 
-      // Tambahkan code execution tool
-      toolsList.push({ codeExecution: {} });
-
-      config.tools = toolsList;
+      if (toolsList.length > 0) {
+        config.tools = toolsList;
+      }
 
       const response = await this.ai.models.generateContent({
         model: selectedModel,
