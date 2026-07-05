@@ -175,10 +175,9 @@ export class OpenRouterService {
     model?: string,
     webSearch?: boolean,
     userId?: string,
+    systemInstructionOverride?: string,
   ): Promise<Response> {
     try {
-      // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
-      // Jika model dari client adalah pro/preview, gunakan model tersebut secara dinamis.
       let selectedModel = this.defaultModel;
       if (model) {
         const cleanModel = model.replace(/^(google\/|openai\/)/i, '');
@@ -186,7 +185,18 @@ export class OpenRouterService {
           selectedModel = cleanModel;
         }
       }
-      const { contents, systemInstruction } = this.mapOpenAiToGemini(messages);
+
+      let contents: any[];
+      let systemInstruction: string | undefined = systemInstructionOverride;
+
+      const isNativeContents = messages.length > 0 && messages[0].parts !== undefined;
+      if (isNativeContents) {
+        contents = messages;
+      } else {
+        const mapped = this.mapOpenAiToGemini(messages);
+        contents = mapped.contents;
+        systemInstruction = mapped.systemInstruction;
+      }
 
       const config: any = {};
       if (systemInstruction) {
@@ -233,6 +243,7 @@ export class OpenRouterService {
 
       const self = this;
       let functionCallToExecute: any = null;
+      let modelContentToSave: any = null;
 
       // Buat ReadableStream kustom untuk membungkus data ke dalam format SSE OpenAI
       const readable = new ReadableStream({
@@ -255,6 +266,10 @@ export class OpenRouterService {
             let annotations: any[] | undefined = undefined;
 
             for await (const chunk of responseStream) {
+              if (chunk.candidates?.[0]?.content) {
+                modelContentToSave = chunk.candidates[0].content;
+              }
+
               if (chunk.functionCalls && chunk.functionCalls.length > 0) {
                 functionCallToExecute = chunk.functionCalls[0];
                 break;
@@ -362,26 +377,31 @@ export class OpenRouterService {
                 userId,
               );
 
-              const updatedMessages = [
-                ...messages,
-                {
-                  role: 'assistant',
-                  functionCall: functionCallToExecute,
-                  content: '',
-                },
-                {
-                  role: 'tool',
-                  name: functionCallToExecute.name,
-                  response: { result },
-                  content: '',
-                }
-              ];
+              if (modelContentToSave) {
+                contents.push(modelContentToSave);
+              } else {
+                contents.push({
+                  role: 'model',
+                  parts: [{ functionCall: functionCallToExecute }]
+                });
+              }
+
+              contents.push({
+                role: 'user',
+                parts: [{
+                  functionResponse: {
+                    name: functionCallToExecute.name,
+                    response: { result }
+                  }
+                }]
+              });
 
               const recursiveResponse = await self.getChatCompletionStream(
-                updatedMessages,
+                contents,
                 model,
                 webSearch,
                 userId,
+                systemInstruction,
               );
 
               const reader = recursiveResponse.body?.getReader();
@@ -505,6 +525,7 @@ export class OpenRouterService {
     model?: string,
     webSearch?: boolean,
     userId?: string,
+    systemInstructionOverride?: string,
   ): Promise<{ content: string; annotations?: Array<{ type: string; url_citation: { url: string; title: string; content?: string; start_index: number; end_index: number } }> }> {
     try {
       // Jika model dari client adalah flash (atau tidak ada), gunakan defaultModel dari .env (misal gemini-3.5-flash)
@@ -516,7 +537,18 @@ export class OpenRouterService {
           selectedModel = cleanModel;
         }
       }
-      const { contents, systemInstruction } = this.mapOpenAiToGemini(messages);
+
+      let contents: any[];
+      let systemInstruction: string | undefined = systemInstructionOverride;
+
+      const isNativeContents = messages.length > 0 && messages[0].parts !== undefined;
+      if (isNativeContents) {
+        contents = messages;
+      } else {
+        const mapped = this.mapOpenAiToGemini(messages);
+        contents = mapped.contents;
+        systemInstruction = mapped.systemInstruction;
+      }
 
       const config: any = {};
       if (systemInstruction) {
@@ -565,22 +597,26 @@ export class OpenRouterService {
         const functionCall = response.functionCalls[0];
         const result = await this.executeFunctionCall(functionCall.name!, functionCall.args, userId);
         
-        const updatedMessages = [
-          ...messages,
-          {
-            role: 'assistant',
-            functionCall: functionCall,
-            content: '',
-          },
-          {
-            role: 'tool',
-            name: functionCall.name!,
-            response: { result },
-            content: '',
-          }
-        ];
+        if (response.candidates?.[0]?.content) {
+          contents.push(response.candidates[0].content);
+        } else {
+          contents.push({
+            role: 'model',
+            parts: [{ functionCall }]
+          });
+        }
 
-        return this.getChatCompletion(updatedMessages, model, webSearch, userId);
+        contents.push({
+          role: 'user',
+          parts: [{
+            functionResponse: {
+              name: functionCall.name!,
+              response: { result }
+            }
+          }]
+        });
+
+        return this.getChatCompletion(contents, model, webSearch, userId, systemInstruction);
       }
 
       // Proses pencarian web / grounding
