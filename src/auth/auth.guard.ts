@@ -2,12 +2,15 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly logger = new Logger(AuthGuard.name);
+
   constructor(private supabaseService: SupabaseService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -32,11 +35,23 @@ export class AuthGuard implements CanActivate {
       request['user'] = data.user;
       return true;
     } catch (err) {
+      // Jangan menelan exception yang sudah spesifik (anti silent-catch)
+      if (err instanceof UnauthorizedException) {
+        throw err;
+      }
+      // Error tak terduga (mis. Supabase down) - log detail untuk debugging
+      this.logger.error(
+        `Unexpected error during token verification: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
       throw new UnauthorizedException('Failed to authenticate token');
     }
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
+  private extractTokenFromHeader(request: {
+    headers?: { authorization?: string };
+  }): string | undefined {
     const authHeader = request.headers?.authorization;
     if (!authHeader) return undefined;
 

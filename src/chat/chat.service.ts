@@ -32,7 +32,14 @@ export class ChatService {
         xp: data.xp ?? 0,
         full_name: data.full_name || '',
       };
-    } catch (_) {
+    } catch (err) {
+      // Anti silent-catch: catat error agar dapat ditelusuri (profil bersifat opsional,
+      // jadi request tetap dilanjutkan tanpa data profil)
+      this.logger.warn(
+        `Gagal mengambil profil singkat user ${userId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
       return null;
     }
   }
@@ -91,9 +98,10 @@ export class ChatService {
       );
       return { reply: result.content, annotations: result.annotations };
     } catch (error) {
-      this.logger.error(`Error processing instant chat: ${error.message}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error processing instant chat: ${errMsg}`);
       throw new HttpException(
-        `Gagal memproses obrolan: ${error.message}`,
+        `Gagal memproses obrolan: ${errMsg}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -142,9 +150,10 @@ export class ChatService {
         useRAG,
       );
     } catch (error) {
-      this.logger.error(`Error starting chat stream: ${error.message}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error starting chat stream: ${errMsg}`);
       throw new HttpException(
-        `Gagal memulai aliran data obrolan: ${error.message}`,
+        `Gagal memulai aliran data obrolan: ${errMsg}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -198,7 +207,9 @@ export class ChatService {
         .join('\n\n');
     } catch (err) {
       this.logger.error(
-        `Failed to retrieve context from database: ${err.message}`,
+        `Failed to retrieve context from database: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
       );
       return 'Gagal memuat regulasi resmi kota dari database.';
     }
@@ -573,9 +584,10 @@ export class ChatService {
       );
       return { text };
     } catch (error) {
-      this.logger.error(`Error in transcribeAudio service: ${error.message}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error in transcribeAudio service: ${errMsg}`);
       throw new HttpException(
-        `Gagal mentranskripsi audio: ${error.message}`,
+        `Gagal mentranskripsi audio: ${errMsg}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

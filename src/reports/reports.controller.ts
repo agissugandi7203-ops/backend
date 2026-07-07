@@ -21,12 +21,34 @@ import { FastifyRequest } from 'fastify';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody, ApiConsumes } from '@nestjs/swagger';
 
+// SECURITY: Whitelist tipe MIME gambar yang diizinkan untuk diunggah
+const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
 @ApiTags('Laporan Penemuan Sampah (Reports)')
 @ApiBearerAuth('JWT-auth')
 @Controller('reports')
 @UseGuards(AuthGuard)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
+
+  /**
+   * Validasi tipe MIME file yang diunggah agar hanya menerima format gambar.
+   * Mencegah upload file berbahaya (executable, script, dll) ke storage.
+   */
+  private validateImageMimeType(mimetype: string): void {
+    if (!ALLOWED_IMAGE_MIME_TYPES.includes(mimetype.toLowerCase())) {
+      throw new BadRequestException(
+        `Format berkas tidak didukung (${mimetype}). Hanya menerima gambar: JPEG, PNG, WebP, atau HEIC.`,
+      );
+    }
+  }
 
   @Post('analyze')
   @ApiConsumes('multipart/form-data')
@@ -57,6 +79,8 @@ export class ReportsController {
     if (!fileData) {
       throw new BadRequestException('Berkas foto laporan wajib diunggah');
     }
+
+    this.validateImageMimeType(fileData.mimetype);
 
     const fileBuffer = await fileData.toBuffer();
     return this.reportsService.analyzeImage(fileBuffer, fileData.mimetype);
@@ -97,6 +121,8 @@ export class ReportsController {
       throw new BadRequestException('Berkas foto laporan wajib diunggah');
     }
 
+    this.validateImageMimeType(fileData.mimetype);
+
     const fileBuffer = await fileData.toBuffer();
 
     // 3. Ekstrak data field non-file (latitude, longitude, description)
@@ -115,6 +141,13 @@ export class ReportsController {
     if (isNaN(lat) || isNaN(lng)) {
       throw new BadRequestException(
         'Latitude dan longitude harus berupa angka desimal yang valid',
+      );
+    }
+
+    // SECURITY: Validasi rentang koordinat geografis yang sah
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new BadRequestException(
+        'Koordinat tidak valid: latitude harus -90..90 dan longitude harus -180..180',
       );
     }
 
