@@ -70,7 +70,7 @@ export class ChatThrottlerGuard implements CanActivate {
         );
         throw new HttpException(
           'Too Many Requests: Anda telah mencapai batas maksimal 10 obrolan per menit. Silakan tunggu beberapa saat.',
-          HttpStatus.BAD_REQUEST, // Menggunakan 400 Bad Request agar dibaca & ditampilkan oleh snackbar Flutter tanpa modifikasi kode
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
 
@@ -83,7 +83,7 @@ export class ChatThrottlerGuard implements CanActivate {
         );
         throw new HttpException(
           'Too Many Requests: Anda telah mencapai batas maksimal 50 obrolan per hari. Silakan coba lagi besok.',
-          HttpStatus.BAD_REQUEST, // Menggunakan 400 Bad Request agar dibaca & ditampilkan oleh snackbar Flutter tanpa modifikasi kode
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
 
