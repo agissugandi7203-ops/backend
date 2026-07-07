@@ -38,9 +38,9 @@ export class OpenRouterService {
       this.aiUS = new GoogleGenAI({
         vertexai: true,
         project: projectId,
-        location: 'us-central1',
+        location: 'global',
       });
-      this.logger.log(`Google GenAI (Vertex AI) Clients initialized successfully targeting ${region} and us-central1.`);
+      this.logger.log(`Google GenAI (Vertex AI) Clients initialized successfully targeting ${region} and global.`);
     } catch (err: any) {
       this.logger.error(`Failed to initialize Google GenAI Clients: ${err.message}`);
     }
