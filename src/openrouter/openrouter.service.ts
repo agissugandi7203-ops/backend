@@ -271,11 +271,6 @@ export class OpenRouterService {
             const seenUris = new Set<string>();
             const citationsList: Array<{ title: string; url: string }> = [];
 
-            let textBuffer = '';
-            let firstChunkFlushed = false;
-            const firstChunkThreshold = 250;
-            const sentenceThreshold = 100;
-            const sentenceBoundary = /[.!?\n]/;
             let annotations: any[] | undefined = undefined;
 
             for await (const chunk of responseStream) {
@@ -369,35 +364,26 @@ export class OpenRouterService {
               }
 
               if (text) {
-                textBuffer += text;
-                const shouldFlush = !firstChunkFlushed
-                  ? (textBuffer.length >= firstChunkThreshold || textBuffer.includes('\n\n'))
-                  : (textBuffer.length >= sentenceThreshold || sentenceBoundary.test(textBuffer));
-
-                if (shouldFlush) {
-                  const ssePayload = {
-                    id: streamId,
-                    object: 'chat.completion.chunk',
-                    created: Math.floor(Date.now() / 1000),
-                    model: selectedModel,
-                    provider: 'GoogleCloud',
-                    choices: [
-                      {
-                        index: 0,
-                        delta: {
-                          content: textBuffer,
-                          role: 'assistant',
-                          ...(annotations ? { annotations } : {}),
-                        },
-                        finish_reason: null,
+                const ssePayload = {
+                  id: streamId,
+                  object: 'chat.completion.chunk',
+                  created: Math.floor(Date.now() / 1000),
+                  model: selectedModel,
+                  provider: 'GoogleCloud',
+                  choices: [
+                    {
+                      index: 0,
+                      delta: {
+                        content: text,
+                        role: 'assistant',
+                        ...(annotations ? { annotations } : {}),
                       },
-                    ],
-                  };
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
-                  firstChunkFlushed = true;
-                  textBuffer = '';
-                  annotations = undefined;
-                }
+                      finish_reason: null,
+                    },
+                  ],
+                };
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
+                annotations = undefined;
               } else if (annotations) {
                 const ssePayload = {
                   id: streamId,
@@ -468,27 +454,7 @@ export class OpenRouterService {
               return;
             }
 
-            // Flush sisa buffer teks jika ada sebelum citations
-            if (textBuffer.length > 0) {
-              const ssePayload = {
-                id: streamId,
-                object: 'chat.completion.chunk',
-                created: Math.floor(Date.now() / 1000),
-                model: selectedModel,
-                provider: 'GoogleCloud',
-                choices: [
-                  {
-                    index: 0,
-                    delta: {
-                      content: textBuffer,
-                      role: 'assistant',
-                    },
-                    finish_reason: null,
-                  },
-                ],
-              };
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(ssePayload)}\n\n`));
-            }
+
 
             // Jika ada sitasi terkumpul, kirimkan daftar tautan di akhir respon secara otomatis
             if (citationsList.length > 0) {
