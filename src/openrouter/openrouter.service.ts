@@ -194,9 +194,9 @@ export class OpenRouterService {
       return 'gemini-3.1-pro-preview';
     }
 
-    // Jika model mengandung kata 'flash', gunakan defaultModel dari .env
+    // Jika model mengandung kata 'flash', gunakan gemini-3.5-flash secara langsung
     if (cleanModel.includes('flash')) {
-      return this.defaultModel;
+      return 'gemini-3.5-flash';
     }
 
     return cleanModel;
