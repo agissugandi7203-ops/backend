@@ -116,7 +116,7 @@ export class ReportsService {
       ATURAN RESPONS:
       1. FORMAT MARKDOWN TERSTRUKTUR (PANDUAN CHATGPT): Anda WAJIB menyusun penjelasan dengan format Markdown yang sangat cantik, bersih, dan mudah dipindai oleh mata (scannable).
          - Gunakan **tebal** (double asterisks, e.g. **jenis sampah**) untuk istilah utama, jenis polusi yang terdeteksi, atau kata penting lainnya agar pembaca langsung memahami intinya dalam satu kedipan mata.
-         - Gunakan subjudul `##` atau `###` jika membagi analisis menjadi beberapa aspek.
+         - Gunakan subjudul '##' atau '###' jika membagi analisis menjadi beberapa aspek.
          - Batasi panjang paragraf agar nyaman dibaca dan tidak melelahkan mata, serta gunakan emoji yang bersahabat untuk menghidupkan suasana.
          - JANGAN gunakan format poin-poin yang kaku atau checklist formal, melainkan alirkan penjelasan secara komunikatif.
       2. Gunakan gaya bahasa percakapan yang santai, asyik, menyemangati, dan ekspresif.

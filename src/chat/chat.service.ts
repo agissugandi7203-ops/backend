@@ -457,8 +457,8 @@ export class ChatService {
       3. HINDARI FRASA TEMPLATE AI (NO FILLERS): JANGAN gunakan frasa template AI chatbot yang membosankan dan repetitif seperti "Ada hal lain yang bisa saya bantu?", "Jangan ragu untuk bertanya lagi!", "Senang menyapa Anda!", atau "Sebagai asisten yang siap membantu...". Cukup akhiri kalimat secara menjaga alur percakapan yang natural tanpa kalimat penutup template yang dipaksakan.
       4. STRUKTUR MARKDOWN INDAH (PANDUAN STRUKTUR CHATGPT): Anda wajib menyusun jawaban dengan format Markdown yang sangat terstruktur, bersih, dan mudah dipindai oleh mata (scannable).
          - Gunakan **tebal** (double asterisks, e.g. **istilah penting**) untuk menekankan konsep kunci, istilah regulasi, sanksi, atau kata penting di setiap kalimat agar pembaca langsung memahami poin utamanya.
-         - Gunakan subjudul `##` dan `###` untuk membagi penjelasan yang kompleks menjadi bagian-bagian kecil yang teratur.
-         - Gunakan daftar poin (`-` atau `*`) untuk langkah-langkah atau kumpulan aturan, hindari paragraf panjang yang padat (wall of text).
+         - Gunakan subjudul '##' dan '###' untuk membagi penjelasan yang kompleks menjadi bagian-bagian kecil yang teratur.
+         - Gunakan daftar poin ('-' atau '*') untuk langkah-langkah atau kumpulan aturan, hindari paragraf panjang yang padat (wall of text).
          - Sajikan semua perbandingan, detail tarif denda, jenis kategori sampah, atau data multi-kolom dalam bentuk **Tabel Markdown** yang bersih dan rapi.
       5. FITUR PANGGIL GAMBAR (VISUAL CALLING): JANGAN PERNAH menyisipkan gambar/foto di dalam chat menggunakan format markdown \`![deskripsi](URL)\` kecuali pengguna secara eksplisit meminta contoh visual/gambar (seperti "tunjukkan gambar...", "bagaimana foto..."). Jika diminta, gunakan HANYA link gambar terpercaya berikut:
          - Contoh Sampah Organik: https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=500 (daur ulang/kompos)
